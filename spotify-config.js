@@ -1,3 +1,1 @@
-// ID público de tu aplicación en Spotify for Developers. Registra como Redirect URI
-// la URL exacta de GitHub Pages, por ejemplo https://usuario.github.io/streamlab/.
-window.STREAMLAB_SPOTIFY_CLIENT_ID = '';
+window.STREAMLAB_SPOTIFY_CLIENT_ID = 'bfd5b6a4d343471ab0efad773249466f';
