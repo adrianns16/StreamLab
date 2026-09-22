@@ -14,3 +14,7 @@ Sitio estático en español con páginas independientes para Inicio, Generador, 
 El Generador busca artistas, álbumes y canciones en el catálogo público de iTunes. Tras elegir canciones, pega el enlace exacto de Spotify para cada una mediante «Enlace». También puedes pegar directamente un enlace de canción en «Pegar enlace». En Ayuda encontrarás los pasos para copiarlo en celular y computadora. Elige reproducciones y fechas, escribe el nombre del archivo y descarga el JSON.
 
 La Calculadora analiza JSON/ZIP localmente en el navegador. El generador produce datos simulados y la importación o la cifra mostrada en stats.fm pueden variar. Para estadísticas auténticas, solicita a Spotify tu historial extendido y sigue la [guía oficial](https://support.stats.fm/es-ES/docs/import/spotify-import/).
+
+## Enlaces con títulos repetidos
+
+Spotify puede devolver solo el título mediante sus metadatos públicos. Al pegar un enlace, el formulario deja vacíos artista, álbum y duración y presenta posibles coincidencias del catálogo de iTunes. El usuario debe elegir la versión correcta o completar los datos mirando Spotify. No se asigna automáticamente la primera canción que comparta el título.
