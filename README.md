@@ -18,3 +18,7 @@ Si aparece «Conecta Spotify» en el Generador, la configuración se ha cargado.
 - Sin conexión el buscador utiliza iTunes; conectado consulta Spotify. Los archivos elegidos en la Calculadora se procesan localmente; las búsquedas sí consultan iTunes o Spotify.
 
 Puedes elegir el nombre del JSON descargado en el campo «Nombre del archivo». El generador produce datos ficticios y no garantiza su aceptación en stats.fm. Para importar historial auténtico, solicita el historial extendido a Spotify y sigue la [guía oficial de stats.fm](https://support.stats.fm/es-ES/docs/import/spotify-import/). La calculadora puede diferir de stats.fm porque este filtra determinados registros.
+
+## Si aparece error 403
+
+Spotify permite iniciar sesión incluso a usuarios a los que no permite consultar la API. En Spotify for Developers comprueba que el usuario esté en **Settings → Users Management** y que el propietario de la aplicación tenga **Spotify Premium activo**. La página utiliza el catálogo alternativo de iTunes mientras tanto. Sin acceso a la API, no puede determinar automáticamente las URI exactas de canciones de iTunes; pega los enlaces en el botón «Enlace».
