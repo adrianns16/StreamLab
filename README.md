@@ -13,7 +13,7 @@ Se admiten hasta 30.000 registros y 500 canciones por selección. La validación
 
 El planificador muestra los días mínimos de escucha continua y recomienda los días necesarios según las horas diarias elegidas (8 por defecto). El botón **Usar plazo recomendado** coloca el final ahora y ajusta el inicio hacia atrás. Es una estimación matemática, no una garantía de aceptación. Las canciones se intercalan en el JSON para distribuir sus repeticiones a lo largo del período.
 
-El borrador se guarda en `localStorage` en este navegador, si está disponible. **Vaciar** elimina las canciones del borrador; **Deshacer** permite recuperar la última selección quitada mientras permanezcas en la página. No se almacenan los historiales de la calculadora.
+La selección solo existe durante la visita actual. Recargar o volver a entrar inicia el generador vacío y elimina los borradores guardados por versiones anteriores. **Vaciar** borra la selección en pantalla y **Deshacer** recupera la última selección quitada mientras sigas en la misma página. No se almacenan los historiales de la calculadora.
 
 ## Calculadora
 

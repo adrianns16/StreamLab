@@ -8,16 +8,10 @@ function el(tag,className,text){const n=document.createElement(tag);if(className
 function item(container,title,detail,art,action,label){const row=el('div','result'),info=el('div','result-info');if(art){const img=el('img');img.src=art;img.alt='';img.loading='lazy';row.appendChild(img)}info.append(el('strong','',title),el('small','',detail));const b=el('button','secondary',label);b.type='button';b.onclick=action;row.append(info,b);container.append(row)}
 function songFromITunes(x){return {artist:x.artistName||'',album:x.collectionName||'',track:x.trackName||'',duration:Math.round((x.trackTimeMillis||0)/1000),uri:null,art:x.artworkUrl100||'',source:'iTunes'}}
 const Core = window.StreamLabCore;
-let draftTimer, linkIndex = -1, undoSongs = null;
+let linkIndex = -1, undoSongs = null;
 const options = () => ({mode: ($('repeatTotal').checked?'total':'perSong'), total: $('totalPlays').value, start: $('start').value, end: $('end').value});
-function persistDraft() {
-  try {
-    localStorage.setItem('streamlab.draft.v1', JSON.stringify({songs:state.songs, ...options(), plays:$('plays').value, dailyHours:$('dailyHours').value, filename:$('filename').value}));
-    msg('draftStatus', state.songs.length ? 'Borrador guardado en este navegador.' : 'Tu selección se guardará en este navegador.');
-  } catch { msg('draftStatus', 'El navegador no permite guardar el borrador. Descárgalo antes de salir.'); }
-}
-function saveDraft() { clearTimeout(draftTimer); draftTimer=setTimeout(persistDraft,180); }
-window.addEventListener('pagehide',persistDraft);
+// Remove drafts written by earlier versions. Each new visit starts with an empty selection.
+try { localStorage.removeItem('streamlab.draft.v1'); } catch {}
 function addSong(s) {
   if (!s.track || !s.artist) throw Error('La canción necesita título y artista.');
   if (state.songs.some(x => s.uri && x.uri ? x.uri === s.uri : x.track === s.track && x.artist === s.artist && x.album === s.album)) {
@@ -71,7 +65,7 @@ function renderTotals() {
   if(!report.issues.length)list.append(el('li','ready','Todo listo: enlaces, cantidades y período revisados.'));
   else for(const issue of report.issues.slice(0,8))list.append(el('li','',issue));
   if(report.issues.length>8)list.append(el('li','',`Y ${report.issues.length-8} avisos más. Revisa las canciones de la lista.`));
-  msg('generateMessage','');saveDraft();
+  msg('generateMessage','');
 }
 const undo=el('button','text-btn hidden','Deshacer');undo.id='undoQueue';undo.type='button';undo.onclick=()=>{if(undoSongs){state.songs=undoSongs;undoSongs=null;renderQueue()}};$('clearQueue').before(undo);
 $('linkForm').onsubmit=e=>{e.preventDefault();try{const parsed=spotify($('queueUri').value);if(!parsed||parsed.type!=='track')throw Error('Pega el enlace de una canción, no de un álbum.');if(state.songs.some((s,i)=>i!==linkIndex&&s.uri===parsed.uri))throw Error('Este enlace ya está asignado a otra canción de tu selección.');Object.assign(state.songs[linkIndex],{uri:parsed.uri,track:$('editTrack').value.trim(),artist:$('editArtist').value.trim(),album:$('editAlbum').value.trim(),duration:Number($('editDuration').value)});$('linkDialog').close();renderQueue()}catch(error){msg('linkError',error.message)}};
@@ -81,7 +75,6 @@ $('totalPlays').addEventListener('input',renderQueue);
 $('dailyHours').addEventListener('input',renderTotals);
 $('applyDays').onclick=()=>{const report=Core.inspect(state.songs,options()),hours=Number($('dailyHours').value);try{if(!Number.isInteger(report.total)||report.total<1||report.total>Core.MAX_RECORDS||report.allocated.some(n=>!Number.isInteger(n)||n<1))throw Error('Revisa la cantidad de reproducciones.');const days=Core.planDays(report.milliseconds,hours).recommended;if(!days)throw Error('Añade canciones con duración válida.');const now=new Date();$('end').value=local(now);$('start').value=local(new Date(now.getTime()-days*86400000));renderTotals()}catch(error){msg('generateMessage',error.message)}};
 for(const id of ['start','end'])$(id).addEventListener('input',renderTotals);
-$('filename').addEventListener('input',saveDraft);
 document.querySelectorAll('[data-days]').forEach(button=>button.onclick=()=>{$('end').value=local(new Date());$('start').value=local(new Date(Date.now()-Number(button.dataset.days)*86400000));renderTotals()});
 
 $('plays').addEventListener('change',()=>{const n=Number($('plays').value);if(!Number.isInteger(n)||n<1||n>Core.MAX_RECORDS){msg('generateMessage','Introduce de 1 a 30.000 reproducciones.');return}state.songs.forEach(s=>s.plays=n);renderQueue()});$('clearQueue').onclick=()=>{undoSongs=state.songs.length?[...state.songs]:undoSongs;state.songs=[];renderQueue()};document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('selected',t===b));for(const mode of ['search','link'])$(mode+'Pane').classList.toggle('hidden',mode!==b.dataset.mode);msg('searchMessage','')});
@@ -101,17 +94,6 @@ $('download').onclick=()=>{
   } catch(error){msg('generateMessage',error.message)}
 };
 $('preview').onclick=()=>{try{$('jsonPreview').textContent=JSON.stringify(Core.generate(state.songs,options()).slice(0,3),null,2);$('jsonPreview').classList.remove('hidden')}catch(error){msg('generateMessage',error.message)}};
-try {
-  const draft=JSON.parse(localStorage.getItem('streamlab.draft.v1')||'null');
-  if(draft&&Array.isArray(draft.songs)) {
-    state.songs=draft.songs.filter(s=>s&&typeof s.track==='string'&&typeof s.artist==='string'&&Number.isFinite(s.duration)).slice(0,500);
-    for(const id of ['start','end','plays','dailyHours','filename'])if(typeof draft[id]==='string')$(id).value=draft[id];
-    $('repeatTotal').checked=draft.mode==='total';
-    if(draft.total!=null)$('totalPlays').value=draft.total;
-    $('totalControl').classList.toggle('hidden',!$('repeatTotal').checked);
-    $('perSongControl').classList.toggle('hidden',$('repeatTotal').checked);
-  }
-} catch {msg('draftStatus','No se pudo recuperar el borrador anterior.');}
 // Keep request responses from overwriting a newer selection: while resolving, disable its button.
 for(const id of ['findArtists','resolveUrl']) {
   const button=$(id), action=button.onclick;
