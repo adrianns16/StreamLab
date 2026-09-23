@@ -46,9 +46,10 @@ window.StreamLabSpotify=(()=>{
     if(!refreshing)refreshing=tokenRequest({grant_type:'refresh_token',refresh_token:token.refresh}).catch(error=>{clear();throw error}).finally(()=>{refreshing=null});
     await refreshing;return token.access;
   }
-  function fail(status,detail){
-    const error=new Error(status===403?'Spotify devolvió 403: la cuenta conectada no tiene acceso a esta app o al catálogo. En Spotify for Developers revisa Users Management, la cuenta elegida y el Premium del propietario.':status===429?'Spotify limitó temporalmente las consultas (429). Espera y vuelve a probar.':status===401?'La sesión de Spotify caducó (401). Vuelve a conectar.':`Spotify devolvió ${status}${detail?': '+detail:''}.`);
-    error.status=status;return error;
+  function fail(status,detail,path){
+    const endpoint=new URL('https://api.spotify.com/v1'+path).pathname.replace('/v1','');
+    const error=new Error(status===403?`Spotify devolvió 403 en ${endpoint}: autorizaste StreamLab, pero Spotify bloqueó esta consulta. En la app del Client ID ${clientId}, comprueba que la cuenta que acabas de elegir esté añadida en Settings → Users Management con su correo exacto y que la cuenta propietaria tenga Premium. Después desconecta y vuelve a conectar.${detail?' Respuesta de Spotify: '+detail:''}`:status===429?'Spotify limitó temporalmente las consultas (429). Espera y vuelve a probar.':status===401?'La sesión de Spotify caducó (401). Vuelve a conectar.':`Spotify devolvió ${status} en ${endpoint}${detail?': '+detail:''}.`);
+    error.status=status;error.endpoint=endpoint;return error;
   }
   async function api(path){
     let access=await getAccess();
@@ -56,7 +57,7 @@ window.StreamLabSpotify=(()=>{
     const query=async bearer=>fetch('https://api.spotify.com/v1'+path,{headers:{Authorization:'Bearer '+bearer}});
     let res=await query(access);
     if(res.status===401&&token?.refresh){token.expires=0;access=await getAccess();if(access)res=await query(access)}
-    if(!res.ok){let detail='';try{detail=(await res.json()).error?.message||''}catch{}if(res.status===401)clear();throw fail(res.status,detail)}
+    if(!res.ok){let detail='';try{detail=(await res.json()).error?.message||''}catch{}if(res.status===401)clear();throw fail(res.status,detail,path)}
     return res.json();
   }
   async function verify(){
