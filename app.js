@@ -103,7 +103,7 @@ $('plays').addEventListener('change',()=>{const n=Number($('plays').value);if(!N
 $('findArtists').onclick=async()=>{
  const name=$('artistSearch').value.trim();if(name.length<2){msg('searchMessage','Escribe al menos dos letras del artista.');return}
  const request=++artistRequest;albumRequest++;msg('searchMessage','Buscando artistas en Spotify…');$('artistResults').replaceChildren();$('albumSelect').disabled=true;$('trackResults').replaceChildren();
- try{const data=await Spotify.api('/search?'+new URLSearchParams({q:name,type:'artist',limit:'20'}));if(request!==artistRequest)return;const artists=data.artists?.items||[];if(!artists.length)throw Error('No encontré artistas. Prueba otro nombre.');for(const x of artists)item($('artistResults'),x.name,x.genres?.slice(0,2).join(' · ')||'Spotify',x.images?.[0]?.url,()=>chooseArtist(x),'Elegir');msg('searchMessage',artists.length+' artistas encontrados en Spotify.')}
+ try{const data=await Spotify.api('/search?'+new URLSearchParams({q:name,type:'artist',limit:'10'}));if(request!==artistRequest)return;const artists=data.artists?.items||[];if(!artists.length)throw Error('No encontré artistas. Prueba otro nombre.');for(const x of artists)item($('artistResults'),x.name,x.genres?.slice(0,2).join(' · ')||'Spotify',x.images?.[0]?.url,()=>chooseArtist(x),'Elegir');msg('searchMessage',artists.length+' artistas encontrados en Spotify.')}
  catch(error){msg('searchMessage',error.message)}
 };
 $('artistSearch').addEventListener('keydown',e=>{if(e.key==='Enter')$('findArtists').click()});
