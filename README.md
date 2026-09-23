@@ -1,6 +1,6 @@
 # StreamLab
 
-Herramientas musicales en español para GitHub Pages: generador de datos simulados y calculadora local de historiales JSON/ZIP. El generador usa autorización de Spotify para buscar su catálogo; la calculadora procesa archivos localmente.
+Herramientas musicales en español para GitHub Pages: generador de datos simulados y calculadora local de historiales JSON/ZIP. El generador funciona sin iniciar sesión; la calculadora procesa archivos localmente.
 
 ## Generador sin cuenta
 
