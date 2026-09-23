@@ -1,33 +1,12 @@
 'use strict';
 const $=id=>document.getElementById(id);const state={songs:[],artist:null,album:null};const fmt=n=>Math.round(n).toLocaleString('es-EC');const msg=(id,s)=>$(id).textContent=s;const local=d=>new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);$('start').value=local(new Date(Date.now()-7*86400000));$('end').value=local(new Date());
+function api(path){return new Promise((resolve,reject)=>{const cb='slcb_'+Math.random().toString(36).slice(2),script=document.createElement('script');let done=false;const finish=(err,data)=>{if(done)return;done=true;clearTimeout(timer);script.remove();delete window[cb];err?reject(err):resolve(data)};window[cb]=d=>finish(null,d);script.src='https://itunes.apple.com/'+path+(path.includes('?')?'&':'?')+'callback='+cb;script.onerror=()=>finish(Error('No se pudo conectar al catálogo. Revisa tu conexión.'));const timer=setTimeout(()=>finish(Error('La búsqueda tardó demasiado. Prueba de nuevo.')),12000);document.head.appendChild(script)})}
 let artistRequest=0,albumRequest=0;
-const Spotify=window.StreamLabSpotify;
-let catalogReady=false;
-function setSpotifyStatus(message,ready=false){
-  catalogReady=ready;msg('spotifyStatus',message);
-  $('disconnectSpotify').classList.toggle('hidden',!Spotify.hasSession());
-  $('findArtists').disabled=!ready;
-}
-async function checkSpotify(){
-  if(!Spotify.hasSession()){setSpotifyStatus('Conecta tu cuenta para buscar artistas y obtener enlaces exactos.');return}
-  setSpotifyStatus('Comprobando acceso al catálogo de Spotify…');
-  try{const user=await Spotify.verify();setSpotifyStatus('Conectado: '+user.name+' · Catálogo disponible'+(user.product?' · '+user.product:''),true)}
-  catch(error){setSpotifyStatus(error.message+' Puedes reconectar con la cuenta autorizada.');}
-}
-$('connectSpotify').onclick=()=>Spotify.connect().catch(error=>setSpotifyStatus(error.message));
-$('disconnectSpotify').onclick=()=>{Spotify.clear();setSpotifyStatus('Sesión desconectada. Puedes volver a conectar otra cuenta.');};
-Spotify.callback().then(checkSpotify).catch(error=>{setSpotifyStatus(error.message);});
+const search=(term,entity,limit=30)=>api('search?media=music&country=US&term='+encodeURIComponent(term)+'&entity='+entity+'&limit='+limit);const lookup=(id,entity)=>api('lookup?id='+encodeURIComponent(id)+'&entity='+entity+'&limit=200');
 function spotify(value){const s=value.trim();if(!s)return null;let m=s.match(/^spotify:(track|album):([a-zA-Z0-9]{22})$/);if(!m)m=s.match(/^https:\/\/(?:open\.)?spotify\.com\/(?:intl-[a-z]{2}\/)?(track|album)\/([a-zA-Z0-9]{22})(?:[/?#].*)?$/i);if(!m)throw Error('Pega un enlace de canción o álbum de open.spotify.com.');return {type:m[1].toLowerCase(),id:m[2],url:`https://open.spotify.com/${m[1].toLowerCase()}/${m[2]}`,uri:`spotify:${m[1].toLowerCase()}:${m[2]}`}}
 function el(tag,className,text){const n=document.createElement(tag);if(className)n.className=className;if(text!=null)n.textContent=text;return n}
 function item(container,title,detail,art,action,label){const row=el('div','result'),info=el('div','result-info');if(art){const img=el('img');img.src=art;img.alt='';img.loading='lazy';row.appendChild(img)}info.append(el('strong','',title),el('small','',detail));const b=el('button','secondary',label);b.type='button';b.onclick=action;row.append(info,b);container.append(row)}
-function spotifyTrack(x,album){
-  return {artist:(x.artists||[]).map(a=>a.name).join(', '),album:album?.name||x.album?.name||'',track:x.name||'',duration:Math.round((x.duration_ms||0)/1000),uri:x.uri||'spotify:track:'+x.id,art:album?.images?.[0]?.url||x.album?.images?.[0]?.url||'',source:'Spotify'};
-}
-async function pages(path){
-  const items=[];let next=path;
-  while(next){const data=await Spotify.api(next);items.push(...(data.items||[]));next=data.next?new URL(data.next).pathname.replace(/^\/v1/,'/')+new URL(data.next).search:null;if(items.length>1000)break}
-  return items;
-}
+function songFromITunes(x){return {artist:x.artistName||'',album:x.collectionName||'',track:x.trackName||'',duration:Math.round((x.trackTimeMillis||0)/1000),uri:null,art:x.artworkUrl100||'',source:'iTunes'}}
 const Core = window.StreamLabCore;
 let linkIndex = -1, undoSongs = null;
 const options = () => ({mode: ($('repeatTotal').checked?'total':'perSong'), total: $('totalPlays').value, start: $('start').value, end: $('end').value});
@@ -40,25 +19,27 @@ function addSong(s) {
   }
   if (state.songs.length >= 500) { msg('searchMessage','La selección admite hasta 500 canciones.'); return; }
   state.songs.push({...s,plays:Number($('plays').value)||10});
-  renderQueue(); msg('searchMessage','«'+s.track+'» añadida.');
+  renderQueue(); msg('searchMessage','«'+s.track+'» añadida. Añade su enlace exacto desde «Tu selección». ');
 }
 function renderQueue() {
   const box=$('queue'), allocated=Core.counts(state.songs,($('repeatTotal').checked?'total':'perSong'),$('totalPlays').value);
   box.replaceChildren();
   if (!state.songs.length) box.append(el('p','muted','Agrega canciones para empezar.'));
   state.songs.forEach((s,i)=>{
-    const row=el('div','queue-item');
+    const row=el('div','queue-item');if(!s.uri)row.classList.add('missing-link');
     if(s.art){const img=el('img');img.src=s.art;img.alt='';img.loading='lazy';row.append(img)}
     const info=el('div','queue-info');
     info.append(el('strong','',s.track),el('small','',s.artist+' · '+(s.album||'Sin álbum')+' · '+Math.floor(s.duration/60)+':'+String(s.duration%60).padStart(2,'0')+(s.durationEstimated?' · duración estimada':'')));
     const input=el('input');input.type='number';input.min='1';input.max=String(Core.MAX_RECORDS);input.value=allocated[i];input.disabled=$('repeatTotal').checked;input.setAttribute('aria-label','Reproducciones de '+s.track);
     input.addEventListener('input',()=>{s.plays=Number(input.value);renderTotals()});
     const remove=el('button','','Quitar');remove.type='button';remove.setAttribute('aria-label','Quitar '+s.track);remove.onclick=()=>{undoSongs=[...state.songs];state.songs.splice(i,1);renderQueue()};
-    const link=el('button','',s.uri?'Revisar / enlace':'Añadir enlace');link.type='button';link.setAttribute('aria-label','Asignar enlace de Spotify a '+s.track);
+    const link=el('button','',s.uri?'Revisar enlace':'Añadir enlace');link.type='button';link.setAttribute('aria-label','Asignar enlace de Spotify a '+s.track);
     link.onclick=()=>{linkIndex=i;msg('linkSong',s.track+' · '+s.artist);$('queueUri').value=s.uri||'';for(const [id,key] of [['editTrack','track'],['editArtist','artist'],['editAlbum','album'],['editDuration','duration']])$(id).value=s[key]||'';msg('linkError','');$('linkDialog').showModal();$('queueUri').focus()};
     const actions=el('div','queue-actions');actions.append(link,remove);row.append(info,input,actions);box.append(row);
   });
   $('queueCount').textContent=state.songs.length;
+  const missing=state.songs.filter(song=>!song.uri).length;
+  msg('linkProgress',!state.songs.length?'Empieza añadiendo una canción. Después pega su enlace de Spotify.':missing?`${missing} ${missing===1?'canción necesita':'canciones necesitan'} su enlace exacto de Spotify. Usa «Añadir enlace» en la lista.`:'¡Todas las canciones tienen enlace! Revisa las fechas y descarga.');
   $('undoQueue').classList.toggle('hidden',!undoSongs);
   renderTotals();
 }
@@ -86,6 +67,7 @@ function renderTotals() {
   if(!report.issues.length)list.append(el('li','ready','Todo listo: enlaces, cantidades y período revisados.'));
   else for(const issue of report.issues.slice(0,8))list.append(el('li','',issue));
   const estimated=state.songs.filter(song=>song.durationEstimated).length;
+  if(estimated)list.append(el('li','',`${estimated} duración(es) estimada(s) desde el historial. Revisa los segundos de cada canción antes de descargar.`));
   if(report.issues.length>8)list.append(el('li','',`Y ${report.issues.length-8} avisos más. Revisa las canciones de la lista.`));
   msg('generateMessage','');
 }
@@ -100,43 +82,12 @@ for(const id of ['start','end'])$(id).addEventListener('input',renderTotals);
 document.querySelectorAll('[data-days]').forEach(button=>button.onclick=()=>{$('end').value=local(new Date());$('start').value=local(new Date(Date.now()-Number(button.dataset.days)*86400000));renderTotals()});
 
 $('plays').addEventListener('change',()=>{const n=Number($('plays').value);if(!Number.isInteger(n)||n<1||n>Core.MAX_RECORDS){msg('generateMessage','Introduce de 1 a 30.000 reproducciones.');return}state.songs.forEach(s=>s.plays=n);renderQueue()});$('clearQueue').onclick=()=>{undoSongs=state.songs.length?[...state.songs]:undoSongs;state.songs=[];renderQueue()};document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('selected',t===b));for(const mode of ['search','link'])$(mode+'Pane').classList.toggle('hidden',mode!==b.dataset.mode);msg('searchMessage','')});
-$('findArtists').onclick=async()=>{
- const name=$('artistSearch').value.trim();if(name.length<2){msg('searchMessage','Escribe al menos dos letras del artista.');return}
- const request=++artistRequest;albumRequest++;msg('searchMessage','Buscando artistas en Spotify…');$('artistResults').replaceChildren();$('albumSelect').disabled=true;$('trackResults').replaceChildren();
- try{const data=await Spotify.api('/search?'+new URLSearchParams({q:name,type:'artist',limit:'10'}));if(request!==artistRequest)return;const artists=data.artists?.items||[];if(!artists.length)throw Error('No encontré artistas. Prueba otro nombre.');for(const x of artists)item($('artistResults'),x.name,x.genres?.slice(0,2).join(' · ')||'Spotify',x.images?.[0]?.url,()=>chooseArtist(x),'Elegir');msg('searchMessage',artists.length+' artistas encontrados en Spotify.')}
- catch(error){msg('searchMessage',error.message)}
-};
-$('artistSearch').addEventListener('keydown',e=>{if(e.key==='Enter')$('findArtists').click()});
-async function chooseArtist(x){
- const request=++artistRequest;albumRequest++;state.artist=x;state.album=null;$('artistResults').replaceChildren(el('p','muted','Artista: '+x.name));$('albumSelect').replaceChildren(new Option('Cargando álbumes…',''));$('albumSelect').disabled=true;$('trackResults').replaceChildren();msg('searchMessage','Buscando álbumes en Spotify…');
- try{const albums=await pages('/artists/'+encodeURIComponent(x.id)+'/albums?'+new URLSearchParams({include_groups:'album,single',limit:'50'}));if(request!==artistRequest)return;const seen=new Set();$('albumSelect').replaceChildren(new Option('Elige un álbum',''));for(const album of albums){if(seen.has(album.id))continue;seen.add(album.id);$('albumSelect').add(new Option(album.name+(album.release_date?' · '+album.release_date.slice(0,4):''),album.id))}if(!seen.size)throw Error('Spotify no devolvió álbumes de este artista.');$('albumSelect').disabled=false;msg('searchMessage',seen.size+' álbumes disponibles.')}
- catch(error){msg('searchMessage',error.message)}
-}
-async function showAlbum(id,box=$('trackResults')){
- const request=++albumRequest;box.replaceChildren();msg('searchMessage','Cargando canciones y enlaces exactos…');
- try{
-  const album=await Spotify.api('/albums/'+encodeURIComponent(id));const tracks=await pages('/albums/'+encodeURIComponent(id)+'/tracks?limit=50');if(request!==albumRequest)return;
-  if(!tracks.length)throw Error('Spotify no devolvió canciones de este álbum.');state.album=album;
-  const all=el('button','add','+ Agregar todo el álbum');all.type='button';all.onclick=()=>{let added=0;for(const track of tracks){const length=state.songs.length;addSong(spotifyTrack(track,album));if(state.songs.length>length)added++}msg('searchMessage',added+' canciones añadidas con su enlace exacto de Spotify.')};box.append(all);
-  for(const track of tracks)item(box,track.name,(track.artists||[]).map(x=>x.name).join(', ')+' · '+Math.round(track.duration_ms/60000)+' min · Spotify',album.images?.[0]?.url,()=>addSong(spotifyTrack(track,album)),'+ Añadir');
-  msg('searchMessage',tracks.length+' canciones encontradas en Spotify. Enlaces exactos listos.');
- }catch(error){msg('searchMessage',error.message)}
-}
-$('albumSelect').onchange=()=>{if($('albumSelect').value)showAlbum($('albumSelect').value)};
+$('findArtists').onclick=async()=>{const name=$('artistSearch').value.trim();if(name.length<2){msg('searchMessage','Escribe al menos dos letras del artista.');return}artistRequest++;albumRequest++;msg('searchMessage','Buscando artistas…');$('artistResults').replaceChildren();$('albumSelect').disabled=true;$('trackResults').replaceChildren();try{const data=await search(name,'musicArtist',20),artists=(data.results||[]).filter(x=>x.wrapperType==='artist');if(!artists.length)throw Error('No encontré artistas. Prueba otro nombre.');for(const x of artists)item($('artistResults'),x.artistName,x.primaryGenreName||'Artista',null,()=>chooseArtist(x),'Elegir');msg('searchMessage',artists.length+' artistas encontrados.')}catch(e){msg('searchMessage',e.message)}};$('artistSearch').addEventListener('keydown',e=>{if(e.key==='Enter')$('findArtists').click()});
+async function chooseArtist(x){const request=++artistRequest;albumRequest++;state.artist=x;state.album=null;$('artistResults').replaceChildren(el('p','muted','Artista: '+x.artistName));$('albumSelect').replaceChildren(new Option('Cargando álbumes…',''));$('albumSelect').disabled=true;$('trackResults').replaceChildren();msg('searchMessage','Buscando álbumes…');try{const data=await lookup(x.artistId,'album');if(request!==artistRequest)return;const albums=(data.results||[]).filter(a=>a.wrapperType==='collection'&&a.collectionType==='Album'),seen=new Set();$('albumSelect').replaceChildren(new Option('Elige un álbum',''));for(const a of albums){if(seen.has(a.collectionId))continue;seen.add(a.collectionId);$('albumSelect').add(new Option(a.collectionName+(a.releaseDate?' · '+a.releaseDate.slice(0,4):''),a.collectionId))}if(!seen.size)throw Error('No encontré álbumes. Prueba con «Pegar enlace».');$('albumSelect').disabled=false;msg('searchMessage',seen.size+' álbumes disponibles.')}catch(e){msg('searchMessage',e.message)}}
+$('albumSelect').onchange=async()=>{const id=$('albumSelect').value,request=++albumRequest;if(!id)return;$('trackResults').replaceChildren();msg('searchMessage','Cargando canciones…');try{const data=await lookup(id,'song');if(request!==albumRequest)return;const songs=(data.results||[]).filter(x=>x.wrapperType==='track'&&x.kind==='song'&&String(x.collectionId)===id);if(!songs.length)throw Error('No encontré canciones de este álbum.');state.album=data.results.find(x=>x.wrapperType==='collection');const all=el('button','add','+ Agregar todo el álbum');all.type='button';all.onclick=()=>{let added=0;for(const song of songs){const previous=state.songs.length;addSong(songFromITunes(song));if(state.songs.length>previous)added++}msg('searchMessage',added+' '+(added===1?'canción añadida':'canciones añadidas')+'. Pega el enlace exacto de cada una con «Añadir enlace».')};$('trackResults').append(all);for(const song of songs)item($('trackResults'),song.trackName,(song.artistName||state.artist.artistName)+' · '+Math.round(song.trackTimeMillis/60000)+' min',song.artworkUrl100,()=>addSong(songFromITunes(song)),'+ Añadir');msg('searchMessage',songs.length+' canciones encontradas.')}catch(e){msg('searchMessage',e.message)}};
 $('manualPane').onsubmit=e=>{e.preventDefault();try{const p=spotify($('manualUri').value);if(!p||p.type!=='track')throw Error('Para una canción, pega un enlace de canción.');addSong({artist:$('manualArtist').value.trim(),album:$('manualAlbum').value.trim(),track:$('manualTrack').value.trim(),duration:Number($('manualDuration').value),uri:p?.uri||null,art:'',source:'manual'});$('manualTrack').value='';$('manualUri').value='';$('spotifyUrl').value='';$('manualPane').classList.add('hidden')}catch(err){msg('searchMessage',err.message)}};
-$('resolveUrl').onclick=async()=>{
- let p;try{p=spotify($('spotifyUrl').value);if(!p)throw Error('Pega un enlace de Spotify.')}catch(error){msg('searchMessage',error.message);return}
- const box=$('linkResult');box.replaceChildren();$('manualPane').classList.add('hidden');$('verifySpotify').href=p.url;msg('searchMessage','Leyendo el enlace en Spotify…');
- try{
-  if(p.type==='album'){await showAlbum(p.id,box);return}
-  const track=await Spotify.api('/tracks/'+p.id);const song=spotifyTrack(track);item(box,song.track,song.artist+' · '+song.album+' · Spotify',song.art,()=>addSong(song),'+ Añadir');msg('searchMessage','Canción y enlace exacto obtenidos de Spotify. Pulsa «+ Añadir».');
- }catch(error){
-  if(p.type==='track'){
-   $('manualArtist').value='';$('manualAlbum').value='';$('manualTrack').value='';$('manualDuration').value='';$('manualUri').value=p.url;$('manualPane').classList.remove('hidden');
-   msg('searchMessage',error.message+' Puedes introducir manualmente el artista, título y duración de esta canción.');
-  }else msg('searchMessage',error.message+' Para cargar todas las canciones de un álbum debes disponer de acceso al catálogo de Spotify.');
- }
-};
+async function spotifyOembed(p){const response=await fetch('https://open.spotify.com/oembed?url='+encodeURIComponent(p.url));if(!response.ok)throw Error('Spotify no devolvió los datos del enlace.');return response.json()}
+$('resolveUrl').onclick=async()=>{let p;try{p=spotify($('spotifyUrl').value);if(!p)throw Error('Pega un enlace de Spotify.')}catch(e){msg('searchMessage',e.message);return}const box=$('linkResult');box.replaceChildren();$('manualPane').classList.add('hidden');$('verifySpotify').href=p.url;msg('searchMessage','Leyendo el enlace…');try{const data=await spotifyOembed(p);const title=(data.title||'').trim();if(!title)throw Error('El enlace no devolvió un título.');if(p.type==='track'){$('manualArtist').value=data.author_name||'';$('manualAlbum').value='';$('manualTrack').value=title;$('manualDuration').value='';$('manualUri').value=p.url;$('manualPane').classList.remove('hidden');item(box,title,'Enlace reconocido · completa artista y duración para esta versión.',data.thumbnail_url,()=>{$('manualTrack').focus()},'Revisar');msg('searchMessage','Solo el título viene del enlace. Completa los otros datos o elige una coincidencia correcta de la lista.');try{const r=await search(title,'song',40);const clean=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();const candidates=(r.results||[]).filter(x=>x.kind==='song'&&clean(x.trackName)===clean(title)).slice(0,12);if(candidates.length){box.append(el('p','hint','Posibles coincidencias de otro catálogo. Elige solo si reconoces al artista y álbum.'));for(const c of candidates)item(box,c.trackName,c.artistName+' · '+c.collectionName,c.artworkUrl100,()=>{$('manualArtist').value=c.artistName||'';$('manualAlbum').value=c.collectionName||'';$('manualDuration').value=c.trackTimeMillis?Math.round(c.trackTimeMillis/1000):'';$('manualTrack').value=title;$('manualPane').classList.remove('hidden');msg('searchMessage','Seleccionaste «'+c.trackName+'» de '+c.artistName+'. Confirma que corresponda al enlace de Spotify.');$('manualArtist').focus()},'Usar datos')}}catch{msg('searchMessage','No se cargaron sugerencias. Escribe el artista, el álbum y la duración de la versión enlazada.')}}else{const r=await search(title,'album',20);const albums=(r.results||[]).filter(x=>x.wrapperType==='collection'&&x.collectionName.toLowerCase()===title.toLowerCase());if(!albums.length){item(box,title,'Busca este álbum por artista para seleccionar canciones.',data.thumbnail_url,()=>{$('artistSearch').value=data.author_name||'';document.querySelector('[data-mode="search"]').click();if($('artistSearch').value)$('findArtists').click()},'Buscar');msg('searchMessage','Ese título no coincide en el catálogo de referencia. Pega enlaces de canciones individuales para identificarlas con precisión.');return}for(const a of albums.slice(0,8))item(box,a.collectionName,a.artistName,a.artworkUrl100,async()=>{document.querySelector('[data-mode="search"]').click();state.artist={artistId:a.artistId,artistName:a.artistName};$('artistResults').replaceChildren(el('p','muted','Artista: '+a.artistName));await chooseArtist(state.artist);$('albumSelect').value=String(a.collectionId);$('albumSelect').dispatchEvent(new Event('change'))},'Ver canciones');msg('searchMessage','Estos álbumes son referencias de otro catálogo. Confirma cada canción y pega su enlace individual de Spotify.')}}catch(e){if(p.type==='track'){$('manualArtist').value='';$('manualAlbum').value='';$('manualTrack').value='';$('manualDuration').value='';$('manualUri').value=p.url;$('manualPane').classList.remove('hidden')}msg('searchMessage','No pude consultar el título. Puedes rellenar los datos manualmente a partir del enlace. '+e.message)}};
 function cleanFilename(name){return Core.cleanFilename(name)}
 $('download').onclick=()=>{
   try {
