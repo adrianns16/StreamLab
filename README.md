@@ -15,6 +15,12 @@ El planificador muestra los días mínimos de escucha continua y recomienda los 
 
 La selección solo existe durante la visita actual. Recargar o volver a entrar inicia el generador vacío y elimina los borradores guardados por versiones anteriores. **Vaciar** borra la selección en pantalla y **Deshacer** recupera la última selección quitada mientras sigas en la misma página. No se almacenan los historiales de la calculadora.
 
+## Enlaces desde tu historial
+
+En «Mi historial» carga JSON o ZIP del historial extendido de Spotify. StreamLab agrupa las reproducciones por canción, álbum y artista con su `spotify_track_uri` exacto. Puedes elegir un álbum y añadir sus canciones con esas URI, o pegar su enlace para buscar coincidencias exactas de título y artista dentro del historial. No se elige automáticamente una versión diferente del mismo tema: cada URI distinta se muestra por separado. Las duraciones se estiman con la duración reproducida más frecuente (se ignoran fragmentos de menos de 30 segundos); revisa y corrige cada duración antes de exportar. El archivo se procesa en el navegador y no se conserva después de cerrar o recargar. Los álbumes no incluidos en el historial requieren enlaces de canciones o acceso autorizado al catálogo de Spotify.
+
+Límites: 50 MB por archivo, 100 MB totales descomprimidos, 100 archivos, un millón de reproducciones y 100.000 canciones diferentes.
+
 ## Calculadora
 
 Carga o arrastra uno o varios JSON/ZIP. Cuenta registros de canciones con título, artista y duración numérica no negativa. Muestra minutos, horas, canciones, artistas, álbumes y días activos UTC. Excluye opcionalmente duplicados identificados por canción, instante y duración; informa de registros omitidos, fechas/URI ausentes y duración cero. Los promedios usan días calendario UTC, incluidos los días sin registros, y no se muestran si hay fechas ausentes. Permite descargar un resumen JSON sin alterar el original.

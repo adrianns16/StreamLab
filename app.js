@@ -29,7 +29,7 @@ function renderQueue() {
     const row=el('div','queue-item');
     if(s.art){const img=el('img');img.src=s.art;img.alt='';img.loading='lazy';row.append(img)}
     const info=el('div','queue-info');
-    info.append(el('strong','',s.track),el('small','',s.artist+' · '+(s.album||'Sin álbum')+' · '+Math.floor(s.duration/60)+':'+String(s.duration%60).padStart(2,'0')));
+    info.append(el('strong','',s.track),el('small','',s.artist+' · '+(s.album||'Sin álbum')+' · '+Math.floor(s.duration/60)+':'+String(s.duration%60).padStart(2,'0')+(s.durationEstimated?' · duración estimada':'')));
     const input=el('input');input.type='number';input.min='1';input.max=String(Core.MAX_RECORDS);input.value=allocated[i];input.disabled=$('repeatTotal').checked;input.setAttribute('aria-label','Reproducciones de '+s.track);
     input.addEventListener('input',()=>{s.plays=Number(input.value);renderTotals()});
     const remove=el('button','','Quitar');remove.type='button';remove.setAttribute('aria-label','Quitar '+s.track);remove.onclick=()=>{undoSongs=[...state.songs];state.songs.splice(i,1);renderQueue()};
@@ -64,11 +64,13 @@ function renderTotals() {
   const list=$('validationList');list.replaceChildren();
   if(!report.issues.length)list.append(el('li','ready','Todo listo: enlaces, cantidades y período revisados.'));
   else for(const issue of report.issues.slice(0,8))list.append(el('li','',issue));
+  const estimated=state.songs.filter(song=>song.durationEstimated).length;
+  if(estimated)list.append(el('li','',`${estimated} duración(es) estimada(s) desde el historial. Revisa los segundos de cada canción antes de descargar.`));
   if(report.issues.length>8)list.append(el('li','',`Y ${report.issues.length-8} avisos más. Revisa las canciones de la lista.`));
   msg('generateMessage','');
 }
 const undo=el('button','text-btn hidden','Deshacer');undo.id='undoQueue';undo.type='button';undo.onclick=()=>{if(undoSongs){state.songs=undoSongs;undoSongs=null;renderQueue()}};$('clearQueue').before(undo);
-$('linkForm').onsubmit=e=>{e.preventDefault();try{const parsed=spotify($('queueUri').value);if(!parsed||parsed.type!=='track')throw Error('Pega el enlace de una canción, no de un álbum.');if(state.songs.some((s,i)=>i!==linkIndex&&s.uri===parsed.uri))throw Error('Este enlace ya está asignado a otra canción de tu selección.');Object.assign(state.songs[linkIndex],{uri:parsed.uri,track:$('editTrack').value.trim(),artist:$('editArtist').value.trim(),album:$('editAlbum').value.trim(),duration:Number($('editDuration').value)});$('linkDialog').close();renderQueue()}catch(error){msg('linkError',error.message)}};
+$('linkForm').onsubmit=e=>{e.preventDefault();try{const parsed=spotify($('queueUri').value);if(!parsed||parsed.type!=='track')throw Error('Pega el enlace de una canción, no de un álbum.');if(state.songs.some((s,i)=>i!==linkIndex&&s.uri===parsed.uri))throw Error('Este enlace ya está asignado a otra canción de tu selección.');Object.assign(state.songs[linkIndex],{uri:parsed.uri,track:$('editTrack').value.trim(),artist:$('editArtist').value.trim(),album:$('editAlbum').value.trim(),duration:Number($('editDuration').value),durationEstimated:false});$('linkDialog').close();renderQueue()}catch(error){msg('linkError',error.message)}};
 $('closeLink').onclick=()=>$('linkDialog').close();
 $('repeatTotal').onchange=()=>{$('totalControl').classList.toggle('hidden',!$('repeatTotal').checked);$('perSongControl').classList.toggle('hidden',$('repeatTotal').checked);renderQueue()};
 $('totalPlays').addEventListener('input',renderQueue);
@@ -77,7 +79,7 @@ $('applyDays').onclick=()=>{const report=Core.inspect(state.songs,options()),hou
 for(const id of ['start','end'])$(id).addEventListener('input',renderTotals);
 document.querySelectorAll('[data-days]').forEach(button=>button.onclick=()=>{$('end').value=local(new Date());$('start').value=local(new Date(Date.now()-Number(button.dataset.days)*86400000));renderTotals()});
 
-$('plays').addEventListener('change',()=>{const n=Number($('plays').value);if(!Number.isInteger(n)||n<1||n>Core.MAX_RECORDS){msg('generateMessage','Introduce de 1 a 30.000 reproducciones.');return}state.songs.forEach(s=>s.plays=n);renderQueue()});$('clearQueue').onclick=()=>{undoSongs=state.songs.length?[...state.songs]:undoSongs;state.songs=[];renderQueue()};document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('selected',t===b));for(const mode of ['search','link'])$(mode+'Pane').classList.toggle('hidden',mode!==b.dataset.mode);msg('searchMessage','')});
+$('plays').addEventListener('change',()=>{const n=Number($('plays').value);if(!Number.isInteger(n)||n<1||n>Core.MAX_RECORDS){msg('generateMessage','Introduce de 1 a 30.000 reproducciones.');return}state.songs.forEach(s=>s.plays=n);renderQueue()});$('clearQueue').onclick=()=>{undoSongs=state.songs.length?[...state.songs]:undoSongs;state.songs=[];renderQueue()};document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('selected',t===b));for(const mode of ['search','link','history'])$(mode+'Pane').classList.toggle('hidden',mode!==b.dataset.mode);msg('searchMessage','')});
 $('findArtists').onclick=async()=>{const name=$('artistSearch').value.trim();if(name.length<2){msg('searchMessage','Escribe al menos dos letras del artista.');return}artistRequest++;albumRequest++;msg('searchMessage','Buscando artistas…');$('artistResults').replaceChildren();$('albumSelect').disabled=true;$('trackResults').replaceChildren();try{const data=await search(name,'musicArtist',20),artists=(data.results||[]).filter(x=>x.wrapperType==='artist');if(!artists.length)throw Error('No encontré artistas. Prueba otro nombre.');for(const x of artists)item($('artistResults'),x.artistName,x.primaryGenreName||'Artista',null,()=>chooseArtist(x),'Elegir');msg('searchMessage',artists.length+' artistas encontrados.')}catch(e){msg('searchMessage',e.message)}};$('artistSearch').addEventListener('keydown',e=>{if(e.key==='Enter')$('findArtists').click()});
 async function chooseArtist(x){const request=++artistRequest;albumRequest++;state.artist=x;state.album=null;$('artistResults').replaceChildren(el('p','muted','Artista: '+x.artistName));$('albumSelect').replaceChildren(new Option('Cargando álbumes…',''));$('albumSelect').disabled=true;$('trackResults').replaceChildren();msg('searchMessage','Buscando álbumes…');try{const data=await lookup(x.artistId,'album');if(request!==artistRequest)return;const albums=(data.results||[]).filter(a=>a.wrapperType==='collection'&&a.collectionType==='Album'),seen=new Set();$('albumSelect').replaceChildren(new Option('Elige un álbum',''));for(const a of albums){if(seen.has(a.collectionId))continue;seen.add(a.collectionId);$('albumSelect').add(new Option(a.collectionName+(a.releaseDate?' · '+a.releaseDate.slice(0,4):''),a.collectionId))}if(!seen.size)throw Error('No encontré álbumes. Prueba con «Pegar enlace».');$('albumSelect').disabled=false;msg('searchMessage',seen.size+' álbumes disponibles.')}catch(e){msg('searchMessage',e.message)}}
 $('albumSelect').onchange=async()=>{const id=$('albumSelect').value,request=++albumRequest;if(!id)return;$('trackResults').replaceChildren();msg('searchMessage','Cargando canciones…');try{const data=await lookup(id,'song');if(request!==albumRequest)return;const songs=(data.results||[]).filter(x=>x.wrapperType==='track'&&x.kind==='song'&&String(x.collectionId)===id);if(!songs.length)throw Error('No encontré canciones de este álbum.');state.album=data.results.find(x=>x.wrapperType==='collection');const all=el('button','add','+ Agregar todo el álbum');all.type='button';all.onclick=()=>{for(const song of songs)addSong(songFromITunes(song));msg('searchMessage',songs.length+' canciones añadidas. Copia los enlaces exactos con el botón «Enlace» de cada canción.')};$('trackResults').append(all);for(const song of songs)item($('trackResults'),song.trackName,(song.artistName||state.artist.artistName)+' · '+Math.round(song.trackTimeMillis/60000)+' min',song.artworkUrl100,()=>addSong(songFromITunes(song)),'+ Añadir');msg('searchMessage',songs.length+' canciones encontradas.')}catch(e){msg('searchMessage',e.message)}};
@@ -100,3 +102,87 @@ for(const id of ['findArtists','resolveUrl']) {
   button.onclick=async()=>{button.disabled=true;button.setAttribute('aria-busy','true');try{await action()}finally{button.disabled=false;button.removeAttribute('aria-busy')}};
 }
 renderQueue();
+
+// The personal catalog exists only in memory and is never sent to a server.
+let historyTracks=[];
+function addHistorySongs(songs){
+  let added=0;
+  for(const song of songs){
+    if(state.songs.length>=500)break;
+    if(state.songs.some(s=>s.uri===song.uri))continue;
+    state.songs.push({...song,plays:Number($('plays').value)||10});added++;
+  }
+  renderQueue();
+  msg('historyMessage',added?`${added} canción(es) añadida(s) con su URI de Spotify. Revisa las duraciones estimadas.`:'No se añadieron canciones nuevas (o llegaste al límite de 500).');
+}
+function showHistoryAlbum(){
+  const artist=$('historyArtist').value,album=$('historyAlbum').value,box=$('historyTracks');
+  box.replaceChildren();
+  if(!artist||!album)return;
+  const tracks=historyTracks.filter(s=>s.artist===artist&&s.album===album).sort((a,b)=>a.track.localeCompare(b.track,'es'));
+  if(!tracks.length)return;
+  const all=el('button','add',`+ Añadir las ${tracks.length} canciones del álbum`);
+  all.type='button';all.onclick=()=>addHistorySongs(tracks);box.append(all);
+  for(const track of tracks)item(box,track.track,`${track.artist} · ${track.duration?`${Math.floor(track.duration/60)}:${String(track.duration%60).padStart(2,'0')} aprox.`:'duración pendiente'} · ${track.uri.slice(-7)}`,null,()=>addHistorySongs([track]),'+ Añadir');
+}
+$('historyArtist').onchange=()=>{
+  const artist=$('historyArtist').value,albums=[...new Set(historyTracks.filter(s=>s.artist===artist).map(s=>s.album))].sort((a,b)=>a.localeCompare(b,'es'));
+  $('historyAlbum').replaceChildren(new Option('Elige un álbum',''));
+  for(const album of albums)$('historyAlbum').add(new Option(album,album));
+  $('historyAlbum').disabled=!albums.length;$('historyTracks').replaceChildren();
+};
+$('historyAlbum').onchange=showHistoryAlbum;
+$('historyFiles').onchange=async event=>{
+  const files=[...event.target.files],budget={bytes:0},catalog=StreamLabHistory.createCatalog();
+  historyTracks=[];$('historyArtist').replaceChildren(new Option('Cargando historial…',''));
+  $('historyArtist').disabled=$('historyAlbum').disabled=true;$('historyAlbum').replaceChildren(new Option('Elige un artista',''));
+  $('historyTracks').replaceChildren();
+  if(!files.length)return;
+  $('historyFiles').disabled=true;msg('historyMessage','Leyendo historial en este dispositivo…');
+  try{
+    if(files.length>100)throw Error('Selecciona hasta 100 archivos por vez.');
+    let records=0;
+    for(const file of files){
+      if(file.size>50*1024*1024)throw Error(`«${file.name}» supera 50 MB.`);
+      if(!/\.(json|zip)$/i.test(file.name))throw Error('Selecciona archivos JSON o ZIP.');
+      if(/\.json$/i.test(file.name)){
+        budget.bytes+=file.size;
+        if(budget.bytes>100*1024*1024)throw Error('El conjunto supera 100 MB. Selecciona menos archivos.');
+      }
+      const entries=/\.zip$/i.test(file.name)?StreamLabZip.jsonEntries(file,budget):(async function*(){yield[file.name,await file.text()]})();
+      for await(const [name,content]of entries){
+        let rows;try{rows=JSON.parse(content.replace(/^\uFEFF/,''))}catch{throw Error(`«${name}» no es JSON válido.`)}
+        if(!Array.isArray(rows)){if(/\.zip$/i.test(file.name))continue;throw Error(`«${name}» no contiene una lista de reproducciones.`)}
+        records+=rows.length;
+        if(records>1000000)throw Error('El historial supera un millón de registros. Selecciona menos archivos.');
+        for(let i=0;i<rows.length;i+=5000){catalog.add(rows.slice(i,i+5000));await new Promise(resolve=>setTimeout(resolve,0))}
+      }
+    }
+    historyTracks=catalog.list();
+    if(!historyTracks.length)throw Error('No encontré canciones con URI de Spotify. Usa el historial extendido (endsong.json).');
+    $('historyArtist').replaceChildren(new Option('Elige un artista',''));
+    for(const artist of [...new Set(historyTracks.map(s=>s.artist))].sort((a,b)=>a.localeCompare(b,'es')))$('historyArtist').add(new Option(artist,artist));
+    $('historyArtist').disabled=false;
+    msg('historyMessage',`${historyTracks.length} canciones con enlace encontradas en tu historial. Elige artista y álbum.`);
+  }catch(error){historyTracks=[];$('historyArtist').replaceChildren(new Option('Carga un historial válido',''));msg('historyMessage',error.message)}
+  finally{$('historyFiles').disabled=false;event.target.value=''}
+};
+$('matchHistoryAlbum').onclick=async()=>{
+  if(!historyTracks.length){msg('historyMessage','Primero carga un historial con canciones y URI.');return}
+  let album;try{album=spotify($('historyAlbumUrl').value);if(!album||album.type!=='album')throw Error('Pega un enlace de álbum de Spotify.')}catch(error){msg('historyMessage',error.message);return}
+  $('matchHistoryAlbum').disabled=true;msg('historyMessage','Buscando ese álbum dentro de tu historial…');
+  try{
+    const metadata=await spotifyOembed(album),title=StreamLabHistory.norm(metadata.title),artist=StreamLabHistory.norm(metadata.author_name);
+    const matches=[...new Map(historyTracks.filter(s=>StreamLabHistory.norm(s.album)===title&&(!artist||StreamLabHistory.norm(s.artist)===artist)).map(s=>[JSON.stringify([s.artist,s.album]),s])).values()];
+    if(matches.length===1){
+      $('historyArtist').value=matches[0].artist;$('historyArtist').dispatchEvent(new Event('change'));
+      $('historyAlbum').value=matches[0].album;showHistoryAlbum();
+      msg('historyMessage',`Encontré «${matches[0].album}» de ${matches[0].artist}. Revisa sus canciones y añádelas.`);
+    }else if(matches.length>1){
+      msg('historyMessage','Hay varios álbumes con ese nombre. Elige el artista y el álbum en los menús para confirmar la versión.');
+    }else{
+      msg('historyMessage',`No encontré «${metadata.title||'ese álbum'}» de ${metadata.author_name||'ese artista'} en tu historial. Prueba a elegirlo en los menús o pega los enlaces de sus canciones.`);
+    }
+  }catch(error){msg('historyMessage','No pude leer el título del enlace. Elige artista y álbum en los menús. '+error.message)}
+  finally{$('matchHistoryAlbum').disabled=false}
+};
