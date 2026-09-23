@@ -1,11 +1,11 @@
 # StreamLab
 
-Herramientas musicales en español para GitHub Pages: generador de datos simulados y calculadora local de historiales JSON/ZIP. No requiere cuenta, servidor ni claves de Spotify.
+Herramientas musicales en español para GitHub Pages: generador de datos simulados y calculadora local de historiales JSON/ZIP. El generador usa autorización de Spotify para buscar su catálogo; la calculadora procesa archivos localmente.
 
 ## Generador
 
-1. Busca un artista, elige un álbum y añade canciones, o pega un enlace de Spotify.
-2. En cada canción, pulsa **Añadir enlace** o **Revisar / enlace**. Pega el enlace de la canción exacta y revisa título, artista, álbum y duración. Las coincidencias de iTunes requieren confirmación; no prueban que sea la misma grabación.
+1. Conecta Spotify, busca un artista y elige un álbum, o pega un enlace de canción o álbum. Las canciones llegan con URI y duración exactas de Spotify.
+2. Elige las canciones concretas o **Agregar todo el álbum**. El enlace individual se puede revisar o corregir en cada fila. Si falla el acceso al catálogo, solo los enlaces de canción admiten datos manuales.
 3. Indica una cantidad por canción o activa **Repartir un total entre todas**. Por ejemplo, 100 registros entre tres canciones produce 34, 33 y 33.
 4. Selecciona el período, revisa los avisos y escribe el nombre del archivo. Puedes ver los primeros tres registros antes de descargar.
 
@@ -15,11 +15,15 @@ El planificador muestra los días mínimos de escucha continua y recomienda los 
 
 La selección solo existe durante la visita actual. Recargar o volver a entrar inicia el generador vacío y elimina los borradores guardados por versiones anteriores. **Vaciar** borra la selección en pantalla y **Deshacer** recupera la última selección quitada mientras sigas en la misma página. No se almacenan los historiales de la calculadora.
 
-## Enlaces desde tu historial
+## Configuración de Spotify
 
-En «Mi historial» carga JSON o ZIP del historial extendido de Spotify. StreamLab agrupa las reproducciones por canción, álbum y artista con su `spotify_track_uri` exacto. Puedes elegir un álbum y añadir sus canciones con esas URI, o pegar su enlace para buscar coincidencias exactas de título y artista dentro del historial. No se elige automáticamente una versión diferente del mismo tema: cada URI distinta se muestra por separado. Las duraciones se estiman con la duración reproducida más frecuente (se ignoran fragmentos de menos de 30 segundos); revisa y corrige cada duración antes de exportar. El archivo se procesa en el navegador y no se conserva después de cerrar o recargar. Los álbumes no incluidos en el historial requieren enlaces de canciones o acceso autorizado al catálogo de Spotify.
+Esta aplicación usa Authorization Code con PKCE en el navegador. `spotify-config.js` contiene solo el Client ID público `bfd5b6a4d343471ab0efad773249466f`; nunca incluyas el Client Secret. El token queda en `sessionStorage` (por pestaña) y la selección de canciones solo en memoria.
 
-Límites: 50 MB por archivo, 100 MB totales descomprimidos, 100 archivos, un millón de reproducciones y 100.000 canciones diferentes.
+1. En [Spotify for Developers](https://developer.spotify.com/dashboard), abre la aplicación correspondiente a ese Client ID. En **Settings → Redirect URIs** agrega exactamente `https://adrianns16.github.io/StreamLab/generator.html` y guarda. Si usas otro dominio o una ruta de Pages diferente, registra también esa URL exacta. Para pruebas locales, Spotify admite `http://127.0.0.1:8000/generator.html`, siempre que se registre exactamente; `localhost` no es válido.
+2. Mientras la app esté en modo de desarrollo, la cuenta propietaria debe tener Spotify Premium y en **Settings → Users Management** debes agregar el correo de la cuenta con la que te conectarás (hasta cinco usuarios). Si autorizar funciona pero la API devuelve 403, confirma que esa misma cuenta está agregada y que la propietaria mantiene Premium. Pulsa **Desconectar** y **Conectar / cambiar cuenta** para repetir el inicio de sesión.
+3. El Generador muestra «Conectado» solo después de consultar perfil y búsqueda del catálogo. Selecciona un artista y álbum o pega un enlace directo de álbum. Carga las pistas paginadas, conservando el `spotify:track:…` y la duración del álbum exacto. Si Spotify no concede acceso, la introducción manual de un enlace individual sigue disponible.
+
+El modo de desarrollo no sirve un catálogo público abierto a cuentas arbitrarias: para eso necesitas la aprobación correspondiente de Spotify. El código del navegador no puede sortear las restricciones de una app ni guardar de forma segura un Client Secret.
 
 ## Calculadora
 
@@ -41,4 +45,4 @@ La raíz contiene `index.html`, `generator.html`, `calculator.html` y `help.html
 - `zip.js`: lectura local de ZIP con límites y CRC.
 - `app.js`, `calculator.js`, `ui.js`: interacción y navegación accesible.
 
-Las búsquedas hacen solicitudes a iTunes y Spotify oEmbed. Los archivos cargados se procesan en el dispositivo. La aplicación es independiente de Spotify, Apple y stats.fm.
+El generador hace solicitudes a Spotify Web API y la calculadora procesa los archivos en el dispositivo. La aplicación es independiente de Spotify y stats.fm.
