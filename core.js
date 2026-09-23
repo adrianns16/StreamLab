@@ -1,7 +1,7 @@
 /* Shared, dependency-free data rules. All dates are exported in UTC. */
 (function (root) {
   'use strict';
-  const MAX_RECORDS = 5000;
+  const MAX_RECORDS = 30000;
   const trackUri = /^spotify:track:[A-Za-z0-9]{22}$/;
   const text = value => typeof value === 'string' && value.trim().length > 0;
   function counts(songs, mode, total) {
@@ -30,6 +30,15 @@
     else if (Number.isFinite(milliseconds) && milliseconds > to - from) issues.push('El período no alcanza para la duración total. Amplíalo o reduce las reproducciones.');
     return { issues, allocated, total, milliseconds, from, to };
   }
+  function planDays(milliseconds, hoursPerDay = 8) {
+    const hours = Number(hoursPerDay);
+    if (!Number.isFinite(hours) || hours < 1 || hours > 24) throw Error('Elige entre 1 y 24 horas de escucha por día.');
+    if (!Number.isFinite(milliseconds) || milliseconds <= 0) return {minimum: 0, recommended: 0};
+    return {
+      minimum: Math.ceil(milliseconds / 86400000),
+      recommended: Math.ceil(milliseconds / (hours * 3600000))
+    };
+  }
   function record(song, timestamp) {
     return {ts: new Date(timestamp).toISOString(), username: 'demo', platform: 'web player (simulación)', ms_played: Number(song.duration) * 1000,
       conn_country: '', ip_addr_decrypted: '', user_agent_decrypted: '', master_metadata_track_name: song.track,
@@ -42,13 +51,18 @@
     if (report.issues.length) throw Error(report.issues[0]);
     const gap = (report.to - report.from - report.milliseconds) / (report.total + 1);
     const records = [];
-    let cursor = report.from;
+    const schedule = [];
     songs.forEach((song, i) => {
       for (let j = 0; j < report.allocated[i]; j++) {
-        cursor += gap + Number(song.duration) * 1000;
-        records.push(record(song, Math.min(Math.round(cursor), report.to)));
+        schedule.push({song, position:(j + 0.5) / report.allocated[i], index:i});
       }
     });
+    schedule.sort((a, b) => a.position - b.position || a.index - b.index);
+    let cursor = report.from;
+    for (const {song} of schedule) {
+      cursor += gap + Number(song.duration) * 1000;
+      records.push(record(song, Math.min(Math.round(cursor), report.to)));
+    }
     return records;
   }
   function estimateBytes(songs, options) {
@@ -94,7 +108,7 @@
   function daySpan(a) {
     return Number.isFinite(a.minDate) ? Math.floor(a.maxDate / 86400000) - Math.floor(a.minDate / 86400000) + 1 : 0;
   }
-  const api = {MAX_RECORDS, counts, inspect, generate, estimateBytes, cleanFilename, accumulator, consume, daySpan};
+  const api = {MAX_RECORDS, counts, inspect, planDays, generate, estimateBytes, cleanFilename, accumulator, consume, daySpan};
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.StreamLabCore = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

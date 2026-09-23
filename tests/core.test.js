@@ -18,8 +18,21 @@ test('generation preserves count, duration, URI and non-overlapping UTC dates',(
   assert.equal(Core.estimateBytes([song],options),Buffer.byteLength(JSON.stringify(Core.generate([song],options)))+1);
 });
 test('invalid dates, URI, duration, fractions and oversized totals block export',()=>{
-  for(const mutation of [{uri:null},{duration:0},{duration:NaN},{plays:1.5},{plays:5001},{artist:''}])assert.throws(()=>Core.generate([{...song,...mutation}],options));
+  for(const mutation of [{uri:null},{duration:0},{duration:NaN},{plays:1.5},{plays:30001},{artist:''}])assert.throws(()=>Core.generate([{...song,...mutation}],options));
   for(const change of [{start:'not-a-date'},{end:options.start},{end:'2099-01-01'},{end:'2020-01-01T00:01:00Z'}])assert.throws(()=>Core.generate([song],{...options,...change}));
+});
+test('30,000 records fit a calculated period and songs are interleaved',()=>{
+  assert.equal(Core.MAX_RECORDS,30000);
+  const plan=Core.planDays(30000*193000,8);
+  assert.deepEqual(plan,{minimum:68,recommended:202});
+  assert.equal(Core.planDays(30000*193000,24).recommended,68);
+  assert.throws(()=>Core.planDays(1000,0));
+  const opts={mode:'total',total:30000,start:'2020-01-01T00:00:00Z',end:'2020-07-21T00:00:00Z'};
+  const rows=Core.generate([song,{...song,track:'Otra canción'}],opts);
+  assert.equal(rows.length,30000);
+  assert.deepEqual(rows.slice(0,4).map(r=>r.master_metadata_track_name),['Fantasma','Otra canción','Fantasma','Otra canción']);
+  assert.ok(Date.parse(rows.at(-1).ts)<=Date.parse(opts.end));
+  assert.ok(Core.inspect([song],{...opts,total:30001}).issues.some(x=>x.includes('30000')));
 });
 test('filenames cannot introduce paths or extra JSON extensions',()=>{
   assert.equal(Core.cleanFilename('../a/b.json'),'_a_b.json');

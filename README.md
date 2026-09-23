@@ -6,10 +6,12 @@ Herramientas musicales en español para GitHub Pages: generador de datos simulad
 
 1. Busca un artista, elige un álbum y añade canciones, o pega un enlace de Spotify.
 2. En cada canción, pulsa **Añadir enlace** o **Revisar / enlace**. Pega el enlace de la canción exacta y revisa título, artista, álbum y duración. Las coincidencias de iTunes requieren confirmación; no prueban que sea la misma grabación.
-3. Elige **Cantidad por canción** o **Repartir un total entre todas**. Por ejemplo, 100 registros entre tres canciones produce 34, 33 y 33.
+3. Indica una cantidad por canción o activa **Repartir un total entre todas**. Por ejemplo, 100 registros entre tres canciones produce 34, 33 y 33.
 4. Selecciona el período, revisa los avisos y escribe el nombre del archivo. Puedes ver los primeros tres registros antes de descargar.
 
-Se mantienen 5000 registros como máximo y 500 canciones por selección. La validación exige identificadores de canciones, cantidades y duraciones enteras, fechas pasadas y espacio suficiente en el período para evitar superposiciones. El formulario usa la zona horaria del dispositivo; la salida usa UTC. El tamaño estimado corresponde a un JSON compacto.
+Se admiten hasta 30.000 registros y 500 canciones por selección. La validación exige identificadores de canciones, cantidades y duraciones enteras, fechas pasadas y espacio suficiente en el período para evitar superposiciones. El formulario usa la zona horaria del dispositivo; la salida usa UTC. El tamaño estimado corresponde a un JSON compacto.
+
+El planificador muestra los días mínimos de escucha continua y recomienda los días necesarios según las horas diarias elegidas (8 por defecto). El botón **Usar plazo recomendado** coloca el final ahora y ajusta el inicio hacia atrás. Es una estimación matemática, no una garantía de aceptación. Las canciones se intercalan en el JSON para distribuir sus repeticiones a lo largo del período.
 
 El borrador se guarda en `localStorage` en este navegador, si está disponible. **Vaciar** elimina las canciones del borrador; **Deshacer** permite recuperar la última selección quitada mientras permanezcas en la página. No se almacenan los historiales de la calculadora.
 
