@@ -4,7 +4,7 @@
   const LIMIT=100*1024*1024;
   const table=Array.from({length:256},(_,n)=>{for(let i=0;i<8;i++)n=(n&1)?0xedb88320^(n>>>1):n>>>1;return n>>>0});
   function crc32(bytes){let crc=0xffffffff;for(const byte of bytes)crc=table[(crc^byte)&255]^(crc>>>8);return (crc^0xffffffff)>>>0}
-  async function* jsonEntries(file,budget){
+  async function* textEntries(file,budget,accept){
     const buffer=await file.arrayBuffer(),view=new DataView(buffer),decoder=new TextDecoder('utf-8',{fatal:true});
     const u16=p=>view.getUint16(p,true),u32=p=>view.getUint32(p,true);
     let end=-1;
@@ -18,7 +18,7 @@
       const flags=u16(pos+8),method=u16(pos+10),crc=u32(pos+16),compressed=u32(pos+20),size=u32(pos+24),nameLength=u16(pos+28),extra=u16(pos+30),comment=u16(pos+32),local=u32(pos+42);
       if(pos+46+nameLength+extra+comment>end)throw Error('Directorio ZIP incompleto.');
       const name=decoder.decode(new Uint8Array(buffer,pos+46,nameLength));pos+=46+nameLength+extra+comment;
-      if(!/\.json$/i.test(name)||name.split('/').some(part=>part.startsWith('.')||part==='__MACOSX'))continue;
+      if(!accept(name)||name.split('/').some(part=>part.startsWith('.')||part==='__MACOSX'))continue;
       if(flags&1)throw Error('El ZIP tiene contraseña. Extrae sus archivos JSON.');
       if(size===0xffffffff||local===0xffffffff)throw Error('ZIP64 no compatible. Extrae los JSON.');
       if(size>LIMIT-budget.bytes)throw Error('El contenido supera 100 MB descomprimidos. Analiza menos archivos a la vez.');
@@ -37,8 +37,9 @@
       budget.bytes+=bytes.length;found++;
       yield [name,decoder.decode(bytes)];
     }
-    if(!found)throw Error('No hay archivos JSON dentro de «'+file.name+'».');
+    if(!found)throw Error('No hay archivos compatibles dentro de «'+file.name+'».');
   }
-  const api={jsonEntries,crc32};
+  function jsonEntries(file,budget){return textEntries(file,budget,name=>/\.json$/i.test(name))}
+  const api={jsonEntries,textEntries,crc32};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.StreamLabZip=api;
 })(globalThis);

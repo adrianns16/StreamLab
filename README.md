@@ -4,11 +4,11 @@ Herramientas musicales en español para GitHub Pages: generador de datos simulad
 
 ## Generador sin cuenta
 
-1. Busca artista y álbum en un catálogo musical de referencia (iTunes), o pega el enlace de una canción de Spotify en «Tengo un enlace». No se requiere Spotify Premium ni autorización.
+1. Busca artista y álbum en un catálogo musical de referencia (iTunes), pega el enlace de una canción de Spotify en «Tengo un enlace», o usa «Pegar lista» para importar varios enlaces de texto o un documento TXT/MD/CSV/JSON/DOCX de hasta 5 MB. No se requiere Spotify Premium ni autorización.
 2. Añade las canciones a «Tu selección». Si proceden del buscador, pega en cada fila el enlace de la grabación exacta desde Spotify. Las coincidencias de iTunes **no son equivalencias verificadas** y nunca se inventa una URI de Spotify.
 3. Indica reproducciones por canción o activa «Repartir un total»; por ejemplo, 100 entre tres canciones produce 34, 33 y 33. Elige fechas u horas diarias y usa el plazo recomendado. Revisa los avisos, previsualiza y descarga un JSON de ejemplo.
 
-Un enlace de álbum solo permite buscar posibles coincidencias por título: sin la API de Spotify no se pueden obtener con seguridad las URI de sus canciones ni agregar automáticamente el álbum exacto. Los enlaces individuales permiten recuperar el título público con Spotify oEmbed, y el usuario verifica los demás datos. Si oEmbed falla, se pueden completar manualmente. El generador admite 500 canciones y 1.000.000 de registros; valida enlaces, duraciones y el espacio en el período. Genera el JSON por bloques y muestra progreso para evitar crear el millón de objetos a la vez. Archivos grandes pueden ocupar cientos de MB y exigir almacenamiento y memoria suficientes en el dispositivo. El número de horas diarias cambia el plazo sugerido y los minutos por día, no los minutos totales. La lista se guarda solo mientras esta pestaña permanezca abierta; al recargar, empieza vacía.
+En «Pegar lista», cada línea puede contener `Título | Artista | Álbum | 3:20 | https://open.spotify.com/track/…`. Los enlaces duplicados se omiten y los títulos públicos se pueden consultar desde oEmbed; el usuario completa y verifica artista y duración antes de añadir. Los archivos se leen localmente. Un enlace de álbum solo permite buscar posibles coincidencias por título: sin la API de Spotify no se pueden obtener con seguridad las URI de sus canciones ni agregar automáticamente el álbum exacto. Los enlaces individuales permiten recuperar el título público con Spotify oEmbed, y el usuario verifica los demás datos. Si oEmbed falla, se pueden completar manualmente. El generador admite 500 canciones y 1.000.000 de registros; valida enlaces, duraciones y el espacio en el período. Genera el JSON por bloques y muestra progreso para evitar crear el millón de objetos a la vez. Archivos grandes pueden ocupar cientos de MB y exigir almacenamiento y memoria suficientes en el dispositivo. El número de horas diarias cambia el plazo sugerido y los minutos por día, no los minutos totales. La lista se guarda solo mientras esta pestaña permanezca abierta; al recargar, empieza vacía.
 
 ## Calculadora
 
@@ -28,6 +28,6 @@ La raíz contiene `index.html`, `generator.html`, `calculator.html` y `help.html
 - Pruebas de datos/ZIP: `node --test tests/*.test.js` (Node.js 22 o posterior).
 - `core.js`: distribución, validación, generación y agregación.
 - `zip.js`: lectura local de ZIP con límites y CRC.
-- `app.js`, `calculator.js`, `ui.js`: interacción y navegación accesible.
+- `app.js`, `batch-links.js`, `calculator.js`, `ui.js`: interacción y navegación accesible.
 
 El generador usa búsquedas iTunes y metadatos públicos oEmbed de enlaces Spotify; la calculadora procesa los archivos en el dispositivo. La aplicación es independiente de Spotify y stats.fm.
