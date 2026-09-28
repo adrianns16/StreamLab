@@ -1,7 +1,7 @@
 /* Shared, dependency-free data rules. All dates are exported in UTC. */
 (function (root) {
   'use strict';
-  const MAX_RECORDS = 30000;
+  const MAX_RECORDS = 1000000;
   const trackUri = /^spotify:track:[A-Za-z0-9]{22}$/;
   const text = value => typeof value === 'string' && value.trim().length > 0;
   function counts(songs, mode, total) {
@@ -46,24 +46,37 @@
       spotify_track_uri: song.uri, episode_name: null, episode_show_name: null, spotify_episode_uri: null,
       reason_start: 'demo', reason_end: 'demo', shuffle: false, skipped: false, offline: false, offline_timestamp: null, incognito_mode: false};
   }
-  function generate(songs, options) {
+  function* records(songs, options) {
     const report = inspect(songs, options);
     if (report.issues.length) throw Error(report.issues[0]);
     const gap = (report.to - report.from - report.milliseconds) / (report.total + 1);
-    const records = [];
-    const schedule = [];
-    songs.forEach((song, i) => {
-      for (let j = 0; j < report.allocated[i]; j++) {
-        schedule.push({song, position:(j + 0.5) / report.allocated[i], index:i});
-      }
-    });
-    schedule.sort((a, b) => a.position - b.position || a.index - b.index);
-    let cursor = report.from;
-    for (const {song} of schedule) {
-      cursor += gap + Number(song.duration) * 1000;
-      records.push(record(song, Math.min(Math.round(cursor), report.to)));
+    // A heap keeps only one upcoming play per song in memory, even for a million records.
+    const heap = [];
+    const compare = (a,b) => a.position - b.position || a.index - b.index;
+    function push(entry) {
+      let i=heap.length;heap.push(entry);
+      while(i>0){const parent=(i-1)>>1;if(compare(heap[parent],entry)<=0)break;heap[i]=heap[parent];i=parent}
+      heap[i]=entry;
     }
-    return records;
+    function pop() {
+      const first=heap[0],last=heap.pop();
+      if(heap.length){let i=0;while(2*i+1<heap.length){let child=2*i+1;if(child+1<heap.length&&compare(heap[child+1],heap[child])<0)child++;if(compare(last,heap[child])<=0)break;heap[i]=heap[child];i=child}heap[i]=last}
+      return first;
+    }
+    songs.forEach((song, i) => {
+      if(report.allocated[i]>0)push({song,index:i,played:0,count:report.allocated[i],position:0.5/report.allocated[i]});
+    });
+    let cursor = report.from;
+    while(heap.length) {
+      const entry=pop();
+      cursor += gap + Number(entry.song.duration) * 1000;
+      yield record(entry.song, Math.min(Math.round(cursor), report.to));
+      entry.played++;
+      if(entry.played<entry.count){entry.position=(entry.played+0.5)/entry.count;push(entry)}
+    }
+  }
+  function generate(songs, options) {
+    return Array.from(records(songs, options));
   }
   function estimateBytes(songs, options) {
     const allocated = counts(songs, options.mode, options.total);
@@ -108,7 +121,7 @@
   function daySpan(a) {
     return Number.isFinite(a.minDate) ? Math.floor(a.maxDate / 86400000) - Math.floor(a.minDate / 86400000) + 1 : 0;
   }
-  const api = {MAX_RECORDS, counts, inspect, planDays, generate, estimateBytes, cleanFilename, accumulator, consume, daySpan};
+  const api = {MAX_RECORDS, counts, inspect, planDays, records, generate, estimateBytes, cleanFilename, accumulator, consume, daySpan};
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.StreamLabCore = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

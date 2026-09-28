@@ -21,8 +21,8 @@ test('invalid dates, URI, duration, fractions and oversized totals block export'
   for(const mutation of [{uri:null},{duration:0},{duration:NaN},{plays:1.5},{plays:30001},{artist:''}])assert.throws(()=>Core.generate([{...song,...mutation}],options));
   for(const change of [{start:'not-a-date'},{end:options.start},{end:'2099-01-01'},{end:'2020-01-01T00:01:00Z'}])assert.throws(()=>Core.generate([song],{...options,...change}));
 });
-test('30,000 records fit a calculated period and songs are interleaved',()=>{
-  assert.equal(Core.MAX_RECORDS,30000);
+test('one million records are allowed and songs are interleaved',()=>{
+  assert.equal(Core.MAX_RECORDS,1000000);
   const plan=Core.planDays(30000*193000,8);
   assert.deepEqual(plan,{minimum:68,recommended:202});
   assert.equal(Core.planDays(30000*193000,24).recommended,68);
@@ -32,7 +32,19 @@ test('30,000 records fit a calculated period and songs are interleaved',()=>{
   assert.equal(rows.length,30000);
   assert.deepEqual(rows.slice(0,4).map(r=>r.master_metadata_track_name),['Fantasma','Otra canción','Fantasma','Otra canción']);
   assert.ok(Date.parse(rows.at(-1).ts)<=Date.parse(opts.end));
-  assert.ok(Core.inspect([song],{...opts,total:30001}).issues.some(x=>x.includes('30000')));
+  assert.ok(Core.inspect([song],{...opts,total:1000001}).issues.some(x=>x.includes('1000000')));
+});
+test('one million records can be iterated without building an array',()=>{
+  const opts={mode:'total',total:1000000,start:'2018-01-01T00:00:00Z',end:'2026-01-01T00:00:00Z'};
+  let count=0,first,last;
+  for(const row of Core.records([song,{...song,track:'Otra canción'}],opts)){
+    if(count===0)first=row;
+    last=row;count++;
+  }
+  assert.equal(count,1000000);
+  assert.equal(first.master_metadata_track_name,'Fantasma');
+  assert.equal(last.master_metadata_track_name,'Otra canción');
+  assert.ok(Date.parse(last.ts)<=Date.parse(opts.end));
 });
 test('filenames cannot introduce paths or extra JSON extensions',()=>{
   assert.equal(Core.cleanFilename('../a/b.json'),'_a_b.json');

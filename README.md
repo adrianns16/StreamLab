@@ -8,7 +8,7 @@ Herramientas musicales en español para GitHub Pages: generador de datos simulad
 2. Añade las canciones a «Tu selección». Si proceden del buscador, pega en cada fila el enlace de la grabación exacta desde Spotify. Las coincidencias de iTunes **no son equivalencias verificadas** y nunca se inventa una URI de Spotify.
 3. Indica reproducciones por canción o activa «Repartir un total»; por ejemplo, 100 entre tres canciones produce 34, 33 y 33. Elige fechas u horas diarias y usa el plazo recomendado. Revisa los avisos, previsualiza y descarga un JSON de ejemplo.
 
-Un enlace de álbum solo permite buscar posibles coincidencias por título: sin la API de Spotify no se pueden obtener con seguridad las URI de sus canciones ni agregar automáticamente el álbum exacto. Los enlaces individuales permiten recuperar el título público con Spotify oEmbed, y el usuario verifica los demás datos. Si oEmbed falla, se pueden completar manualmente. El generador admite 500 canciones y 30.000 registros; valida enlaces, duraciones y el espacio en el período. La lista se guarda solo mientras esta pestaña permanezca abierta; al recargar, empieza vacía.
+Un enlace de álbum solo permite buscar posibles coincidencias por título: sin la API de Spotify no se pueden obtener con seguridad las URI de sus canciones ni agregar automáticamente el álbum exacto. Los enlaces individuales permiten recuperar el título público con Spotify oEmbed, y el usuario verifica los demás datos. Si oEmbed falla, se pueden completar manualmente. El generador admite 500 canciones y 1.000.000 de registros; valida enlaces, duraciones y el espacio en el período. Genera el JSON por bloques y muestra progreso para evitar crear el millón de objetos a la vez. Archivos grandes pueden ocupar cientos de MB y exigir almacenamiento y memoria suficientes en el dispositivo. El número de horas diarias cambia el plazo sugerido y los minutos por día, no los minutos totales. La lista se guarda solo mientras esta pestaña permanezca abierta; al recargar, empieza vacía.
 
 ## Calculadora
 
@@ -25,7 +25,7 @@ La raíz contiene `index.html`, `generator.html`, `calculator.html` y `help.html
 ## Desarrollo y verificación
 
 - Servir localmente: `python3 -m http.server 8000`.
-- Pruebas de datos/ZIP: `node --test tests/core.test.js` (Node.js 22 o posterior).
+- Pruebas de datos/ZIP: `node --test tests/*.test.js` (Node.js 22 o posterior).
 - `core.js`: distribución, validación, generación y agregación.
 - `zip.js`: lectura local de ZIP con límites y CRC.
 - `app.js`, `calculator.js`, `ui.js`: interacción y navegación accesible.

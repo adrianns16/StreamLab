@@ -80,3 +80,13 @@ button.secondary{color:#e3f7e9;background:#294338;border-color:#638875}
 .guide-card li{display:block;position:relative;padding-left:38px;min-height:28px}
 .guide-card li::before{position:absolute;left:0;top:0}
 .guide-card li strong{margin-right:4px}
+
+/* Transparent listening-time estimates and large-file progress. */
+.planning-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:15px 0 12px}
+.planning-metrics>div{min-width:0;border:1px solid #4e8060;border-radius:12px;padding:11px;background:#0d2019}
+.planning-metrics strong{display:block;color:#91f0bb;font-size:1.5rem;line-height:1.1;overflow-wrap:anywhere}
+.planning-metrics span{display:block;margin-top:6px;color:#c3dcca;font-size:.74rem;line-height:1.25}
+.download-state{border:1px solid #4e8060;border-radius:12px;background:#0d2019;margin:12px 0;padding:12px}
+.download-state label{margin:0 0 9px}.download-state progress{height:14px}.download-state .row{align-items:center;justify-content:space-between;margin-top:10px;gap:15px}
+.download-state #downloadStatus{font-size:.86rem;color:#c3e9d1}
+@media(max-width:430px){.planning-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.planning-metrics>div:last-child{grid-column:1/-1}}

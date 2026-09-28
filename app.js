@@ -8,7 +8,7 @@ function el(tag,className,text){const n=document.createElement(tag);if(className
 function item(container,title,detail,art,action,label){const row=el('div','result'),info=el('div','result-info');if(art){const img=el('img');img.src=art;img.alt='';img.loading='lazy';row.appendChild(img)}info.append(el('strong','',title),el('small','',detail));const b=el('button','secondary',label);b.type='button';b.onclick=action;row.append(info,b);container.append(row)}
 function songFromITunes(x){return {artist:x.artistName||'',album:x.collectionName||'',track:x.trackName||'',duration:Math.round((x.trackTimeMillis||0)/1000),uri:null,art:x.artworkUrl100||'',source:'iTunes'}}
 const Core = window.StreamLabCore;
-let linkIndex = -1, undoSongs = null;
+let linkIndex = -1, undoSongs = null, isDownloading = false, cancelDownload = false;
 const options = () => ({mode: ($('repeatTotal').checked?'total':'perSong'), total: $('totalPlays').value, start: $('start').value, end: $('end').value});
 // Remove drafts written by earlier versions. Each new visit starts with an empty selection.
 try { localStorage.removeItem('streamlab.draft.v1'); } catch {}
@@ -48,28 +48,31 @@ function renderTotals() {
   $('estimatePlays').textContent=Number.isFinite(report.total)?fmt(report.total):'—';
   $('estimateMinutes').textContent=Number.isFinite(report.milliseconds)?fmt(report.milliseconds/60000):'—';
   const hours=Number($('dailyHours').value), days=$('daysEstimate');
+  $('dailyCapacity').textContent=Number.isInteger(hours)&&hours>=1&&hours<=24?fmt(hours*60):'—';
+  $('dailyAverage').textContent='—';
+  $('recommendedDays').textContent='—';
   let recommended=0;
   if(!state.songs.length || !Number.isFinite(report.milliseconds) || report.milliseconds<=0 || !Number.isInteger(report.total) || report.total<1 || report.total>Core.MAX_RECORDS || report.allocated.some(n=>!Number.isInteger(n)||n<1)){
-    days.textContent='Añade canciones con duraciones válidas para calcular el plazo.';
+    days.textContent='Añade canciones con duraciones válidas. Las horas al día determinan el plazo, no los minutos totales.';
   } else if(!Number.isInteger(hours) || hours<1 || hours>24){
     days.textContent='Elige entre 1 y 24 horas por día.';
   } else {
     const plan=Core.planDays(report.milliseconds,hours);recommended=plan.recommended;
-    days.textContent=`Mínimo continuo: ${fmt(plan.minimum)} ${plan.minimum===1?'día':'días'} a 24 h/día. Recomendado: ${fmt(recommended)} ${recommended===1?'día':'días'} a ${hours} h/día, unos ${fmt(report.total/recommended)} registros diarios. El JSON distribuye las fechas durante todo el período; esto no garantiza aceptación en stats.fm.`;
+    $('dailyAverage').textContent=fmt(report.milliseconds/60000/recommended);
+    $('recommendedDays').textContent=fmt(recommended);
+    days.textContent=`Mínimo a 24 h/día: ${fmt(plan.minimum)} ${plan.minimum===1?'día':'días'}. Con ${hours} h/día: aproximadamente ${fmt(report.total/recommended)} registros cada día. Las fechas se distribuyen durante el período elegido.`;
   }
   $('applyDays').disabled=!recommended;
   const bytes=Core.estimateBytes(state.songs,options());
-  $('estimateSize').textContent='Tamaño aproximado: '+(bytes/1024).toLocaleString('es-EC',{maximumFractionDigits:1})+' KB · JSON compacto · Horas: '+(report.milliseconds/3600000||0).toLocaleString('es-EC',{maximumFractionDigits:1});
-  $('download').disabled=report.issues.length>0;
+  $('estimateSize').textContent='Archivo estimado: '+(bytes>=1024*1024?(bytes/1048576).toLocaleString('es-EC',{maximumFractionDigits:1})+' MB':(bytes/1024).toLocaleString('es-EC',{maximumFractionDigits:1})+' KB')+' · JSON compacto. '+(bytes>100*1048576?'Para un archivo grande, usa un equipo con espacio libre suficiente.':'');
+  $('download').disabled=report.issues.length>0||isDownloading;
   $('preview').disabled=report.issues.length>0;
   $('jsonPreview').classList.add('hidden');
   const list=$('validationList');list.replaceChildren();
   if(!report.issues.length)list.append(el('li','ready','Todo listo: enlaces, cantidades y período revisados.'));
   else for(const issue of report.issues.slice(0,8))list.append(el('li','',issue));
-  const estimated=state.songs.filter(song=>song.durationEstimated).length;
-  if(estimated)list.append(el('li','',`${estimated} duración(es) estimada(s) desde el historial. Revisa los segundos de cada canción antes de descargar.`));
   if(report.issues.length>8)list.append(el('li','',`Y ${report.issues.length-8} avisos más. Revisa las canciones de la lista.`));
-  msg('generateMessage','');
+  if(!isDownloading)msg('generateMessage','');
 }
 const undo=el('button','text-btn hidden','Deshacer');undo.id='undoQueue';undo.type='button';undo.onclick=()=>{if(undoSongs){state.songs=undoSongs;undoSongs=null;renderQueue()}};$('clearQueue').before(undo);
 $('linkForm').onsubmit=e=>{e.preventDefault();try{const parsed=spotify($('queueUri').value);if(!parsed||parsed.type!=='track')throw Error('Pega el enlace de una canción, no de un álbum.');if(state.songs.some((s,i)=>i!==linkIndex&&s.uri===parsed.uri))throw Error('Este enlace ya está asignado a otra canción de tu selección.');Object.assign(state.songs[linkIndex],{uri:parsed.uri,track:$('editTrack').value.trim(),artist:$('editArtist').value.trim(),album:$('editAlbum').value.trim(),duration:Number($('editDuration').value),durationEstimated:false});$('linkDialog').close();renderQueue()}catch(error){msg('linkError',error.message)}};
@@ -81,7 +84,7 @@ $('applyDays').onclick=()=>{const report=Core.inspect(state.songs,options()),hou
 for(const id of ['start','end'])$(id).addEventListener('input',renderTotals);
 document.querySelectorAll('[data-days]').forEach(button=>button.onclick=()=>{$('end').value=local(new Date());$('start').value=local(new Date(Date.now()-Number(button.dataset.days)*86400000));renderTotals()});
 
-$('plays').addEventListener('change',()=>{const n=Number($('plays').value);if(!Number.isInteger(n)||n<1||n>Core.MAX_RECORDS){msg('generateMessage','Introduce de 1 a 30.000 reproducciones.');return}state.songs.forEach(s=>s.plays=n);renderQueue()});$('clearQueue').onclick=()=>{undoSongs=state.songs.length?[...state.songs]:undoSongs;state.songs=[];renderQueue()};document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('selected',t===b));for(const mode of ['search','link'])$(mode+'Pane').classList.toggle('hidden',mode!==b.dataset.mode);msg('searchMessage','')});
+$('plays').addEventListener('change',()=>{const n=Number($('plays').value);if(!Number.isInteger(n)||n<1||n>Core.MAX_RECORDS){msg('generateMessage','Introduce de 1 a 1.000.000 de reproducciones.');return}state.songs.forEach(s=>s.plays=n);renderQueue()});$('clearQueue').onclick=()=>{undoSongs=state.songs.length?[...state.songs]:undoSongs;state.songs=[];renderQueue()};document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('selected',t===b));for(const mode of ['search','link'])$(mode+'Pane').classList.toggle('hidden',mode!==b.dataset.mode);msg('searchMessage','')});
 $('findArtists').onclick=async()=>{const name=$('artistSearch').value.trim();if(name.length<2){msg('searchMessage','Escribe al menos dos letras del artista.');return}artistRequest++;albumRequest++;msg('searchMessage','Buscando artistas…');$('artistResults').replaceChildren();$('albumSelect').disabled=true;$('trackResults').replaceChildren();try{const data=await search(name,'musicArtist',20),artists=(data.results||[]).filter(x=>x.wrapperType==='artist');if(!artists.length)throw Error('No encontré artistas. Prueba otro nombre.');for(const x of artists)item($('artistResults'),x.artistName,x.primaryGenreName||'Artista',null,()=>chooseArtist(x),'Elegir');msg('searchMessage',artists.length+' artistas encontrados.')}catch(e){msg('searchMessage',e.message)}};$('artistSearch').addEventListener('keydown',e=>{if(e.key==='Enter')$('findArtists').click()});
 async function chooseArtist(x){const request=++artistRequest;albumRequest++;state.artist=x;state.album=null;$('artistResults').replaceChildren(el('p','muted','Artista: '+x.artistName));$('albumSelect').replaceChildren(new Option('Cargando álbumes…',''));$('albumSelect').disabled=true;$('trackResults').replaceChildren();msg('searchMessage','Buscando álbumes…');try{const data=await lookup(x.artistId,'album');if(request!==artistRequest)return;const albums=(data.results||[]).filter(a=>a.wrapperType==='collection'&&a.collectionType==='Album'),seen=new Set();$('albumSelect').replaceChildren(new Option('Elige un álbum',''));for(const a of albums){if(seen.has(a.collectionId))continue;seen.add(a.collectionId);$('albumSelect').add(new Option(a.collectionName+(a.releaseDate?' · '+a.releaseDate.slice(0,4):''),a.collectionId))}if(!seen.size)throw Error('No encontré álbumes. Prueba con «Pegar enlace».');$('albumSelect').disabled=false;msg('searchMessage',seen.size+' álbumes disponibles.')}catch(e){msg('searchMessage',e.message)}}
 $('albumSelect').onchange=async()=>{const id=$('albumSelect').value,request=++albumRequest;if(!id)return;$('trackResults').replaceChildren();msg('searchMessage','Cargando canciones…');try{const data=await lookup(id,'song');if(request!==albumRequest)return;const songs=(data.results||[]).filter(x=>x.wrapperType==='track'&&x.kind==='song'&&String(x.collectionId)===id);if(!songs.length)throw Error('No encontré canciones de este álbum.');state.album=data.results.find(x=>x.wrapperType==='collection');const all=el('button','add','+ Agregar todo el álbum');all.type='button';all.onclick=()=>{let added=0;for(const song of songs){const previous=state.songs.length;addSong(songFromITunes(song));if(state.songs.length>previous)added++}msg('searchMessage',added+' '+(added===1?'canción añadida':'canciones añadidas')+'. Pega el enlace exacto de cada una con «Añadir enlace».')};$('trackResults').append(all);for(const song of songs)item($('trackResults'),song.trackName,(song.artistName||state.artist.artistName)+' · '+Math.round(song.trackTimeMillis/60000)+' min',song.artworkUrl100,()=>addSong(songFromITunes(song)),'+ Añadir');msg('searchMessage',songs.length+' canciones encontradas.')}catch(e){msg('searchMessage',e.message)}};
@@ -89,19 +92,48 @@ $('manualPane').onsubmit=e=>{e.preventDefault();try{const p=spotify($('manualUri
 async function spotifyOembed(p){const response=await fetch('https://open.spotify.com/oembed?url='+encodeURIComponent(p.url));if(!response.ok)throw Error('Spotify no devolvió los datos del enlace.');return response.json()}
 $('resolveUrl').onclick=async()=>{let p;try{p=spotify($('spotifyUrl').value);if(!p)throw Error('Pega un enlace de Spotify.')}catch(e){msg('searchMessage',e.message);return}const box=$('linkResult');box.replaceChildren();$('manualPane').classList.add('hidden');$('verifySpotify').href=p.url;msg('searchMessage','Leyendo el enlace…');try{const data=await spotifyOembed(p);const title=(data.title||'').trim();if(!title)throw Error('El enlace no devolvió un título.');if(p.type==='track'){$('manualArtist').value=data.author_name||'';$('manualAlbum').value='';$('manualTrack').value=title;$('manualDuration').value='';$('manualUri').value=p.url;$('manualPane').classList.remove('hidden');item(box,title,'Enlace reconocido · completa artista y duración para esta versión.',data.thumbnail_url,()=>{$('manualTrack').focus()},'Revisar');msg('searchMessage','Solo el título viene del enlace. Completa los otros datos o elige una coincidencia correcta de la lista.');try{const r=await search(title,'song',40);const clean=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();const candidates=(r.results||[]).filter(x=>x.kind==='song'&&clean(x.trackName)===clean(title)).slice(0,12);if(candidates.length){box.append(el('p','hint','Posibles coincidencias de otro catálogo. Elige solo si reconoces al artista y álbum.'));for(const c of candidates)item(box,c.trackName,c.artistName+' · '+c.collectionName,c.artworkUrl100,()=>{$('manualArtist').value=c.artistName||'';$('manualAlbum').value=c.collectionName||'';$('manualDuration').value=c.trackTimeMillis?Math.round(c.trackTimeMillis/1000):'';$('manualTrack').value=title;$('manualPane').classList.remove('hidden');msg('searchMessage','Seleccionaste «'+c.trackName+'» de '+c.artistName+'. Confirma que corresponda al enlace de Spotify.');$('manualArtist').focus()},'Usar datos')}}catch{msg('searchMessage','No se cargaron sugerencias. Escribe el artista, el álbum y la duración de la versión enlazada.')}}else{const r=await search(title,'album',20);const albums=(r.results||[]).filter(x=>x.wrapperType==='collection'&&x.collectionName.toLowerCase()===title.toLowerCase());if(!albums.length){item(box,title,'Busca este álbum por artista para seleccionar canciones.',data.thumbnail_url,()=>{$('artistSearch').value=data.author_name||'';document.querySelector('[data-mode="search"]').click();if($('artistSearch').value)$('findArtists').click()},'Buscar');msg('searchMessage','Ese título no coincide en el catálogo de referencia. Pega enlaces de canciones individuales para identificarlas con precisión.');return}for(const a of albums.slice(0,8))item(box,a.collectionName,a.artistName,a.artworkUrl100,async()=>{document.querySelector('[data-mode="search"]').click();state.artist={artistId:a.artistId,artistName:a.artistName};$('artistResults').replaceChildren(el('p','muted','Artista: '+a.artistName));await chooseArtist(state.artist);$('albumSelect').value=String(a.collectionId);$('albumSelect').dispatchEvent(new Event('change'))},'Ver canciones');msg('searchMessage','Estos álbumes son referencias de otro catálogo. Confirma cada canción y pega su enlace individual de Spotify.')}}catch(e){if(p.type==='track'){$('manualArtist').value='';$('manualAlbum').value='';$('manualTrack').value='';$('manualDuration').value='';$('manualUri').value=p.url;$('manualPane').classList.remove('hidden')}msg('searchMessage','No pude consultar el título. Puedes rellenar los datos manualmente a partir del enlace. '+e.message)}};
 function cleanFilename(name){return Core.cleanFilename(name)}
-$('download').onclick=()=>{
+async function downloadJson(){
+  if(isDownloading)return;
+  let writer=null,completion='';
   try {
-    const records=Core.generate(state.songs,options());
-    const blob=new Blob([JSON.stringify(records)],{type:'application/json'}),url=URL.createObjectURL(blob);
-    const a=el('a');a.href=url;a.download=cleanFilename($('filename').value);document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
-    msg('generateMessage','Descargado: '+fmt(records.length)+' registros simulados · '+(blob.size/1024).toFixed(1)+' KB.');
-  } catch(error){msg('generateMessage',error.message)}
-};
-$('preview').onclick=()=>{try{$('jsonPreview').textContent=JSON.stringify(Core.generate(state.songs,options()).slice(0,3),null,2);$('jsonPreview').classList.remove('hidden')}catch(error){msg('generateMessage',error.message)}};
+    const songs=state.songs.map(song=>({...song})),settings=options(),report=Core.inspect(songs,settings);
+    if(report.issues.length)throw Error(report.issues[0]);
+    isDownloading=true;cancelDownload=false;renderTotals();
+    const filename=cleanFilename($('filename').value),progress=$('downloadProgress');
+    progress.max=report.total;progress.value=0;$('downloadState').classList.remove('hidden');
+    msg('downloadStatus','Preparando '+fmt(report.total)+' registros…');
+    if(report.total>50000&&typeof window.showSaveFilePicker==='function'){
+      const handle=await window.showSaveFilePicker({suggestedName:filename,types:[{description:'Archivo JSON',accept:{'application/json':['.json']}}]});
+      writer=await handle.createWritable();
+    }
+    const parts=writer?null:[],chunkSize=2000;
+    let chunk='[',done=0;
+    for(const row of Core.records(songs,settings)){
+      chunk+=(done?',':'')+JSON.stringify(row);done++;
+      if(done%chunkSize===0){
+        if(writer)await writer.write(chunk);else parts.push(new Blob([chunk],{type:'application/json'}));
+        chunk='';progress.value=done;msg('downloadStatus',fmt(done)+' / '+fmt(report.total)+' registros');
+        await new Promise(resolve=>setTimeout(resolve,0));
+        if(cancelDownload)throw Error('Descarga cancelada.');
+      }
+    }
+    chunk+=']';
+    if(writer){await writer.write(chunk);await writer.close();writer=null}
+    else{
+      parts.push(new Blob([chunk],{type:'application/json'}));
+      const blob=new Blob(parts,{type:'application/json'}),url=URL.createObjectURL(blob);
+      const a=el('a');a.href=url;a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+    }
+    progress.value=done;completion='Archivo de '+fmt(done)+' registros listo.';
+  } catch(error){if(writer)await writer.abort().catch(()=>{});completion=error.name==='AbortError'?'No se guardó ningún archivo.':error.message}
+  finally{isDownloading=false;cancelDownload=false;$('downloadState').classList.add('hidden');renderTotals();msg('generateMessage',completion)}
+}
+$('download').onclick=downloadJson;
+$('cancelDownload').onclick=()=>{cancelDownload=true;msg('downloadStatus','Cancelando…')};
+$('preview').onclick=()=>{try{const rows=[];for(const row of Core.records(state.songs,options())){rows.push(row);if(rows.length===3)break}$('jsonPreview').textContent=JSON.stringify(rows,null,2);$('jsonPreview').classList.remove('hidden')}catch(error){msg('generateMessage',error.message)}};
 // Keep request responses from overwriting a newer selection: while resolving, disable its button.
 for(const id of ['findArtists','resolveUrl']) {
   const button=$(id), action=button.onclick;
   button.onclick=async()=>{button.disabled=true;button.setAttribute('aria-busy','true');try{await action()}finally{button.disabled=false;button.removeAttribute('aria-busy')}};
 }
 renderQueue();
-
