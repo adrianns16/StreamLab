@@ -18,10 +18,6 @@ Límites: 50 MB por archivo de entrada, 100 MB descomprimidos en total, 100 arch
 
 **Los registros del archivo no equivalen a reproducciones aceptadas por stats.fm.** StreamLab no garantiza importación ni evita validaciones del servicio. El generador identifica sus datos como simulación; no altera el historial real de Spotify.
 
-## Publicación
-
-La raíz contiene `index.html`, `generator.html`, `calculator.html` y `help.html`. Configura GitHub Pages para publicar desde `main`, carpeta raíz. Logo y favicon están incrustados en los HTML. No se requiere compilación ni instalar paquetes.
-
 ## Desarrollo y verificación
 
 - Servir localmente: `python3 -m http.server 8000`.
