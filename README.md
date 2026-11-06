@@ -17,13 +17,3 @@ Carga o arrastra uno o varios JSON/ZIP. Cuenta registros de canciones con títul
 Límites: 50 MB por archivo de entrada, 100 MB descomprimidos en total, 100 archivos seleccionados y un millón de registros por análisis. ZIP sin contraseña con métodos Store/Deflate; se comprueban tamaño y CRC y se limita la descompresión mientras ocurre. Si el navegador no admite Deflate, extrae los JSON primero.
 
 **Los registros del archivo no equivalen a reproducciones aceptadas por stats.fm.** StreamLab no garantiza importación ni evita validaciones del servicio. El generador identifica sus datos como simulación; no altera el historial real de Spotify.
-
-## Desarrollo y verificación
-
-- Servir localmente: `python3 -m http.server 8000`.
-- Pruebas de datos/ZIP: `node --test tests/*.test.js` (Node.js 22 o posterior).
-- `core.js`: distribución, validación, generación y agregación.
-- `zip.js`: lectura local de ZIP con límites y CRC.
-- `app.js`, `batch-links.js`, `calculator.js`, `ui.js`: interacción y navegación accesible.
-
-El generador usa búsquedas iTunes y metadatos públicos oEmbed de enlaces Spotify; la calculadora procesa los archivos en el dispositivo. La aplicación es independiente de Spotify y stats.fm.
